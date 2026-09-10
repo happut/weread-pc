@@ -1,0 +1,12 @@
+{
+  "name": "weread-pc",
+  "version": "0.1.0",
+  "description": "WeRead PC client based on Electron + webview",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron ."
+  },
+  "devDependencies": {
+    "electron": "^33.0.0"
+  }
+}

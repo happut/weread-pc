@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-page-node-id="UOP6PgDCRfwyJbvqHqJDbj">
+<head data-page-node-id="cskzUPwqz40YQB4g5sNbT7">
+  <meta charset="UTF-8" data-page-node-id="jx3lSmzddc9kHDw6zbnoYa" />
+  <title>WeRead PC</title>
+  <style>
+    :root {
+      --bar-bg: #fbfbfc;
+      --bar-border: #e6e7eb;
+      --text: #2c2f36;
+      --text-dim: #8a8f9a;
+      --accent: #2f7de1;
+      --accent-soft: #e8f1fd;
+      --hover: #f0f1f4;
+      --radius: 8px;
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body { height: 100%; overflow: hidden; }
+    body {
+      font-family: -apple-system, "PingFang SC", "Helvetica Neue", sans-serif;
+      color: var(--text);
+      background: var(--bar-bg);
+    }
+
+    #bar {
+      height: 52px;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      padding: 0 16px;
+      background: var(--bar-bg);
+      border-bottom: 1px solid var(--bar-border);
+      -webkit-user-select: none;
+      user-select: none;
+    }
+    .group { display: flex; align-items: center; gap: 8px; }
+    .sep { width: 1px; height: 22px; background: var(--bar-border); }
+    .hint { font-size: 12px; color: var(--text-dim); }
+    .spacer { margin-left: auto; }
+
+    button {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 5px;
+      height: 32px;
+      padding: 0 12px;
+      border: 1px solid var(--bar-border);
+      border-radius: var(--radius);
+      background: #fff;
+      color: var(--text);
+      font-size: 13px;
+      font-family: inherit;
+      cursor: pointer;
+      transition: background .12s, border-color .12s, color .12s, box-shadow .12s;
+      box-shadow: 0 1px 1px rgba(16, 18, 24, .04);
+    }
+    button:hover { background: var(--hover); border-color: #d3d6dd; }
+    button:active { background: #e8eaee; box-shadow: none; }
+    button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+    button.primary {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: #fff;
+      box-shadow: 0 1px 2px rgba(47, 125, 225, .25);
+    }
+    button.primary:hover { background: #2a6fc8; border-color: #2a6fc8; }
+    button.primary:active { background: #2560af; }
+    button[disabled] { opacity: .45; cursor: default; }
+
+    /* 分段控件：A−  [label]  A＋ */
+    .segmented {
+      display: inline-flex;
+      align-items: center;
+      border: 1px solid var(--bar-border);
+      border-radius: var(--radius);
+      background: #fff;
+      overflow: hidden;
+      box-shadow: 0 1px 1px rgba(16, 18, 24, .04);
+    }
+    .segmented button {
+      height: 30px;
+      width: 34px;
+      padding: 0;
+      border: none;
+      border-radius: 0;
+      box-shadow: none;
+      background: transparent;
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--text);
+    }
+    .segmented button:hover { background: var(--hover); }
+    .segmented .value {
+      min-width: 76px;
+      height: 30px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 12px;
+      color: var(--text-dim);
+      border-left: 1px solid var(--bar-border);
+      border-right: 1px solid var(--bar-border);
+      background: #fafbfc;
+      font-variant-numeric: tabular-nums;
+    }
+
+    input#interval {
+      width: 56px;
+      height: 32px;
+      padding: 0 8px;
+      border: 1px solid var(--bar-border);
+      border-radius: var(--radius);
+      font-size: 13px;
+      font-family: inherit;
+      text-align: center;
+      color: var(--text);
+      background: #fff;
+    }
+    input#interval:focus { outline: 2px solid var(--accent); outline-offset: 1px; border-color: var(--accent); }
+
+    #status { font-size: 12px; color: var(--text-dim); font-variant-numeric: tabular-nums; }
+    #status.on { color: #1f9254; }
+
+    #wrap { display: flex; flex-direction: column; height: calc(100% - 52px); }
+    webview { flex: 1; width: 100%; }
+  </style>
+</head>
+<body data-page-node-id="erUpXCxPessy51XegkwCFK">
+  <div id="bar" data-page-node-id="QbGSqUIBRGAp2HxdPkaqgi">
+    <div class="group" data-page-node-id="pGA2FppgAYMl4ghEur2CRb">
+      <button id="prevBtn" title="上一页（⌘+←）" data-page-node-id="YZsrBRLyQZfivbzZ5v8dl9">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" data-page-node-id="hTIjzkaGAfbhblFlryh007"><polyline points="15 18 9 12 15 6" data-page-node-id="EXPhY9m65BTKDhzPnqOLes"></polyline></svg>
+        上一页
+      </button>
+      <button id="nextBtn" title="下一页（⌘+→）" data-page-node-id="1pE3uKfFHQrZvMriqKDS0h">
+        下一页
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" data-page-node-id="9ZmroNAwta15yX9TwzlrHn"><polyline points="9 18 15 12 9 6" data-page-node-id="IJ5LsHwwWJLek8c1eFg6KZ"></polyline></svg>
+      </button>
+    </div>
+
+    <div class="sep" data-page-node-id="2xcSEfZZIxybUGRFpKxzLT"></div>
+
+    <div class="group" data-page-node-id="OlqanfLm6gVxesugBcTKYd">
+      <span class="hint" data-page-node-id="FlLlrUQWn38GwuOAA7YL0w">字号</span>
+      <div class="segmented" data-page-node-id="GayyWYDG9vhHGpSQLODQ2T">
+        <button id="fontMinus" title="缩小（正文为 canvas 渲染，靠整体缩放）" data-page-node-id="47Uw2BeVeTFx8xg9CAOZJr">A−</button>
+        <span class="value" id="fontLabel" data-page-node-id="NV87fEfF5FV8WOhteDtVrr">90% ≈ 16px</span>
+        <button id="fontPlus" title="放大" data-page-node-id="KBB0nWObhEBJaNRy9l31nz">A＋</button>
+      </div>
+    </div>
+
+    <div class="sep" data-page-node-id="9wQKFs0UnnitsHrYlg8Cf4"></div>
+
+    <div class="group" data-page-node-id="3IkFjv2AOoyigJAlQUs3yA">
+      <button id="autoToggle" title="按设定间隔自动翻到下一页" data-page-node-id="RhKlLXmXtw77g1mHEaHUB8">自动翻页</button>
+      <input id="interval" type="number" min="3" max="600" value="30" title="翻页间隔（秒）" data-page-node-id="f4iikqd6rt5mVsvsW7pmiR" />
+      <span class="hint" data-page-node-id="AsWAdYFL6qUxoz3XxMzLxZ">秒</span>
+    </div>
+
+    <div class="spacer" data-page-node-id="OkNw7Snaq0OAqS9X2iPUWh"></div>
+
+    <div class="group" data-page-node-id="A9RBFyyNJqrDmMsuRbYRuK">
+      <span id="status" data-page-node-id="fNZCPg4bkIYVccz7xwMOfc"></span>
+      <button id="rerenderBtn" title="跨屏拖动后正文错位时，点此强制重新排版">重绘</button>
+      <button id="homeBtn" title="回到书架" data-page-node-id="blnZgrH209lrlSFGXFEvpg">书架</button>
+    </div>
+  </div>
+  <div id="wrap" data-page-node-id="ZsOtHB5CM0U8vtMH9SotTI">
+    <webview id="weread" src="https://weread.qq.com/#login" partition="persist:weread" allowpopups="false" data-page-node-id="GYiNRdTz0mMYnG1HhzsmSg"></webview>
+  </div>
+  <script src="renderer.js"></script>
+</body>
+</html>

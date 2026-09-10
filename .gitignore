@@ -1,0 +1,10 @@
+node_modules/
+package-lock.json
+
+# 登录会话 / 缓存（含个人登录态，绝不入库）
+.userdata/
+.electron-home/
+.electron-cache/
+
+.DS_Store
+*.log
