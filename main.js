@@ -77,5 +77,13 @@ ipcMain.handle('force-rerender', () => {
   return true;
 });
 
+// 把窗口宽度调到单页模式阈值（≤1000px 时阅读器自动单页，消除双页中缝）
+ipcMain.handle('set-window-width', (_, width) => {
+  if (!win) return false;
+  const height = win.getSize()[1];
+  win.setContentSize(Math.min(1600, Math.max(800, width)), height);
+  return true;
+});
+
 app.whenReady().then(createWindow);
 app.on('window-all-closed', () => app.quit());

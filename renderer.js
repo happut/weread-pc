@@ -7,6 +7,7 @@ const intervalInput = document.getElementById('interval');
 const autoToggle = document.getElementById('autoToggle');
 const homeBtn = document.getElementById('homeBtn');
 const rerenderBtn = document.getElementById('rerenderBtn');
+const singlePageBtn = document.getElementById('singlePageBtn');
 const prevBtn = document.getElementById('prevBtn');
 const nextBtn = document.getElementById('nextBtn');
 const statusEl = document.getElementById('status');
@@ -136,6 +137,10 @@ nextBtn.addEventListener('click', () => {
 rerenderBtn.addEventListener('click', () => {
   if (window.wereadPC) window.wereadPC.forceRerender();
   setTimeout(applyFont, 400); // 重排后补回缩放样式
+});
+singlePageBtn.addEventListener('click', () => {
+  // 阅读器在窗口 <=1000px 时自动切单页（实测），中缝消失、正文字号等效变大
+  if (window.wereadPC) window.wereadPC.setWindowWidth(1000);
 });
 homeBtn.addEventListener('click', () => {
   webview.loadURL('https://weread.qq.com/web/shelf');
