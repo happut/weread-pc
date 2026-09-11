@@ -4,8 +4,10 @@ const { app, BrowserWindow } = require('electron');
 const path = require('path');
 
 app.setPath('userData', path.join(__dirname, '.userdata'));
+// 同 probe.js：填入你想排查的书的 BOOK_ID
+const BOOK_ID = '<BOOK_ID>';
 const BOOK = process.argv.slice(2).find((a) => !a.startsWith('-')) ||
-  'https://weread.qq.com/web/reader/<BOOK_ID>';
+  `https://weread.qq.com/web/reader/${BOOK_ID}`;
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 

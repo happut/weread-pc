@@ -4,8 +4,10 @@ const { app, BrowserWindow } = require('electron');
 const path = require('path');
 
 app.setPath('userData', path.join(__dirname, '.userdata'));
+// 把 <BOOK_ID> 换成你正在读的那本书在 weread.qq.com 上 URL 里的那段（ 这种）
+const BOOK_ID = '<BOOK_ID>';
 const BOOK = process.argv.slice(2).find((a) => !a.startsWith('-')) ||
-  'https://weread.qq.com/web/reader/<BOOK_ID>';
+  `https://weread.qq.com/web/reader/${BOOK_ID}`;
 
 function dumpAll(text) {
   fs.writeFileSync('/tmp/weread_probe.json', text);
