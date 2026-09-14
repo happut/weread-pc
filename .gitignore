@@ -9,5 +9,8 @@ package-lock.json
 .DS_Store
 *.log
 
+# 头脑风暴可视化伴侣的临时状态（本地服务/截图，不入库）
+.superpowers/
+
 # 构建产物
 release/
