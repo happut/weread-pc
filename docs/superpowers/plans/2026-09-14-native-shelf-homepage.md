@@ -41,8 +41,9 @@
 2. **reader URL**：点书应该 `loadURL` 哪个地址才能**直达 canvas 阅读器**（`deepLink` 指向 book-detail 详情页，可能需再点一次「阅读」，破坏「点封面即读」体验）。决定 Task 5 `readerUrlFor` 的返回形式。
 
 **Files:**
-- Create: `probe-cover.js`
-- Create: `probe-reader.js`
+- Create: `probe-cover.js`（封面 Referer 校验）
+- Create: `probe-reader3.js`（从官方书架页发现真实 reader URL 模式）
+- Create: `probe-reader4.js`（验证 deepLink 的 `v` → `/web/reader/<v>` 映射）
 - 依赖本地已存在的 `/tmp/weread_shelf_full.json`（由 probe-shelf3.js 生成；若无，先 `npx electron probe-shelf3.js`）
 
 > 运行探针前请**先关闭正在运行的 app**，避免 `persist:weread` 分区被占用。
@@ -97,67 +98,41 @@ Expected 输出两行 `[no-referer]` 与 `[with-referer]` 的 status。
 - 若 `[no-referer]` 非 200 但 `[with-referer] status=200` → **需要注入 Referer**，Task 8 **必须做**。
 - 若两者都非 200 → 记为异常，采用设计文档兜底 B（经 webview 转 base64），在本计划末尾追加应急任务（先不展开，YAGNI，等真遇到再补）。
 
-- [ ] **Step 4: 写 reader URL 探针**
+- [x] **Step 4: 发现 reader URL 模式（probe-reader3.js）**
 
-创建 `probe-reader.js`：
+> 实测记录：最初猜的两个候选都失败——`web/reader?bookId=<数字id>` 直接 **服务器 404**；book-detail 点「阅读」跳 `#/download`（SPA 内部路由，不可直连）。于是加载官方书架页取证。
+
+创建并运行 `probe-reader3.js`（加载 `web/shelf`，dump 所有 `a[href]` + 点击首个书卡观察跳转）：
+
+Run: `npx electron probe-reader3.js`
+
+**实测结论：** 书架页每本书是 `<a class="shelfBook" href="/web/reader/<TOKEN>">`；点击后跳 `https://weread.qq.com/web/reader/<TOKEN>`，`title=书名`、`canvasCount=1`、`hasWrCanvas=true`。`<TOKEN>` 不是数字 bookId，而与 `deepLink` 的 `v=` 参数同格式。
+
+- [x] **Step 5: 验证映射（probe-reader4.js）**
+
+**假设：** `readerUrl = https://weread.qq.com/web/reader/<v>`，`<v>` 从该书 `deepLink` 的 `v=` 提取。创建并运行 `probe-reader4.js`（取 3 本有进度的书，提取 `v` → 加载 `/web/reader/<v>` → 校验 canvas + 标题命中）：
 
 ```js
-// probe-reader.js — 验证点书应加载哪个 URL 才能直达 canvas 阅读器
-// 运行（先关闭 app）：npx electron probe-reader.js
-const { app, BrowserWindow } = require('electron');
-const fs = require('fs');
-
-function pickBook() {
-  const p = '/tmp/weread_shelf_full.json';
-  if (!fs.existsSync(p)) return null;
-  const d = JSON.parse(fs.readFileSync(p, 'utf8'));
-  const prog = new Set((d.bookProgress || []).map(x => String(x.bookId)));
-  const b = (d.books || []).find(x => prog.has(String(x.bookId)) && x.deepLink);
-  return b ? { bookId: String(b.bookId), deepLink: b.deepLink } : null;
-}
-
-app.whenReady().then(async () => {
-  const book = pickBook();
-  if (!book) { console.error('缺少样本，请先运行 probe-shelf3.js'); app.quit(); return; }
-  const candidates = [
-    ['deepLink', book.deepLink],
-    ['web/reader', 'https://weread.qq.com/web/reader?bookId=' + book.bookId]
-  ];
-  const win = new BrowserWindow({ show: false, webPreferences: { partition: 'persist:weread' } });
-  for (const [label, url] of candidates) {
-    try {
-      await win.loadURL(url);
-      await new Promise(r => setTimeout(r, 5000)); // 等重定向/首屏渲染
-      const finalUrl = win.webContents.getURL();
-      const readerLike = await win.webContents.executeJavaScript(
-        "!!(document.querySelector('.wr_canvasContainer') || document.querySelector('canvas'))"
-      ).catch(() => false);
-      console.log(`[${label}] load=${url}\n           final=${finalUrl}\n           readerLike=${readerLike}`);
-    } catch (e) {
-      console.log(`[${label}] ERROR ${e.message}`);
-    }
-  }
-  app.quit();
-});
+// 核心：从 deepLink 提取 v，拼成 reader URL
+const v = (b.deepLink.match(/[?&]v=([^&]+)/) || [])[1] || '';
+const url = 'https://weread.qq.com/web/reader/' + v;
 ```
 
-- [ ] **Step 5: 运行 reader 探针**
+Run: `npx electron probe-reader4.js`
 
-Run: `npx electron probe-reader.js`
-Expected: 两个候选各输出 `final=` 与 `readerLike=`。
+**实测结论：** 3/3 命中（数字 id `3300202587`、短 id `695233`、`CB_` 前缀各一），`canvasOK=true` 且 `titleHit=true`。假设成立。
 
-- [ ] **Step 6: 按 reader 结果定 `readerUrlFor`**
+- [x] **Step 6: 确认结论，回写 `readerUrlFor`**
 
-判定规则：
-- 若 `deepLink` 的 `readerLike=true`（详情页会自动进阅读）→ **保持 Task 5 `readerUrlFor` 返回 `deepLink`**（当前写法），无需改。
-- 若 `deepLink` 的 `readerLike=false` 但 `web/reader` 的 `readerLike=true` → **把 Task 5 `readerUrlFor` 改为**返回 `'https://weread.qq.com/web/reader?bookId=' + vm.bookId`（仅在 Task 5 改这一行）。
-- 若两者都 `readerLike=false` → 记录 `final=` 实际 URL，以能直达阅读的那个形式为准写回 `readerUrlFor`。
+两个 spike 的最终决策：
+- **封面**：`no-referer` 实测 `status=200` → 封面可直连，**Task 8 跳过**，`shelf-view` 直接用远程 URL 作 `<img src>`。
+- **reader URL**：确认 `https://weread.qq.com/web/reader/<v>`（`v` 来自 `deepLink`）。这是纯函数可算的，故**放在 `shelf-data` 层**（可单测）：`toBookVM` 增加 `readerUrl` 字段，新增纯函数 `readerUrlFromDeepLink(deepLink)`；Task 5 `readerUrlFor(vm)` 改为返回 `vm.readerUrl`（回退 `vm.deepLink`）。
 
 - [ ] **Step 7: 提交探针**
 
 ```bash
-git add probe-cover.js probe-reader.js
-git commit -m "chore: 新增封面 Referer + reader URL 直达探针（spike）"
+git add probe-cover.js probe-reader3.js probe-reader4.js
+git commit -m "chore: 新增封面/reader URL 直达探针（spike，确认 /web/reader/<v> 映射）"
 ```
 
 ---
@@ -223,6 +198,12 @@ test('toBookVM: 缺 cover 也不报错，progress 默认 0', () => {
   assert.strictEqual(b3.cover, '');
   assert.strictEqual(b3.progress, 0);
 });
+
+test('readerUrl: 从 deepLink 的 v 参数拼出 /web/reader/<v>', () => {
+  const vm = buildViewModel(raw);
+  const b1 = vm.allBooks.find(b => b.bookId === 'b1');
+  assert.strictEqual(b1.readerUrl, 'https://weread.qq.com/web/reader/1');
+});
 ```
 
 - [ ] **Step 3: 运行测试，确认失败**
@@ -263,14 +244,23 @@ Expected: FAIL —— `Cannot find module '../shelf-data.js'`。
     return { reading, finished, totalHours: Math.round(totalSeconds / 3600) };
   }
 
+  // deepLink 形如 https://weread.qq.com/book-detail?type=1&v=<TOKEN>
+  // 真实阅读器 = https://weread.qq.com/web/reader/<TOKEN>（Task 1 spike 已验证）
+  function readerUrlFromDeepLink(deepLink) {
+    const v = (String(deepLink || '').match(/[?&]v=([^&]+)/) || [])[1] || '';
+    return v ? ('https://weread.qq.com/web/reader/' + v) : '';
+  }
+
   function toBookVM(b, p) {
+    const deepLink = b.deepLink || '';
     return {
       bookId: String(b.bookId),
       title: b.title || '',
       author: b.author || '',
       cover: b.cover || '',
       progress: p && typeof p.progress === 'number' ? p.progress : 0,
-      deepLink: b.deepLink || ''
+      deepLink: deepLink,
+      readerUrl: readerUrlFromDeepLink(deepLink)
     };
   }
 
@@ -308,7 +298,7 @@ Expected: FAIL —— `Cannot find module '../shelf-data.js'`。
     };
   }
 
-  const api = { buildViewModel, computeStats, buildContinueReading, buildAllBooks, toBookVM, buildProgressMap };
+  const api = { buildViewModel, computeStats, buildContinueReading, buildAllBooks, toBookVM, buildProgressMap, readerUrlFromDeepLink };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.ShelfData = api;
 })(typeof window !== 'undefined' ? window : globalThis);
@@ -317,7 +307,7 @@ Expected: FAIL —— `Cannot find module '../shelf-data.js'`。
 - [ ] **Step 5: 运行测试，确认通过**
 
 Run: `node --test test/shelf-data.test.js`
-Expected: PASS（4 tests）。
+Expected: PASS（5 tests）。
 
 - [ ] **Step 6: 提交**
 
@@ -606,9 +596,9 @@ Expected: FAIL —— `Cannot find module '../shelf-view.js'`。
     return { first, last };
   }
 
-  // 阅读入口 URL：默认用 deepLink；若 Task 1 Step 6 判定需直达阅读器，仅改这一行为 web/reader 形式
+  // 阅读入口 URL：用 shelf-data 算好的 readerUrl（/web/reader/<v>，Task 1 spike 已验证），回退 deepLink
   function readerUrlFor(vm) {
-    return vm.deepLink || ('https://weread.qq.com/web/bookDetail?bookId=' + vm.bookId);
+    return vm.readerUrl || vm.deepLink || ('https://weread.qq.com/web/bookDetail?bookId=' + vm.bookId);
   }
 
   function el(tag, cls, text) {
@@ -1055,7 +1045,7 @@ git commit -m "feat: 为封面 CDN 请求注入 Referer（宿主默认 session�
 - [ ] **Step 1: 全量单测**
 
 Run: `node --test test/`
-Expected: 全部 PASS（11 tests：shelf-data 4 + shelf-fetch 3 + shelf-view 4）。
+Expected: 全部 PASS（12 tests：shelf-data 5 + shelf-fetch 3 + shelf-view 4）。
 
 - [ ] **Step 2: 冷启动秒开（缓存生效）**
 

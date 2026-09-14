@@ -19,8 +19,9 @@ Electron + webview 套一层网页版，这两件事都能就地解决。
 
 | 功能 | 说明 |
 | --- | --- |
+| 原生书架首页 | 启动即用本地缓存秒开原生书架（清爽网格 + 继续阅读 + 阅读统计），不进网页版；点书直接进阅读 |
 | 日常阅读 | 完整网页版，登录态持久化（`partition="persist:weread"`），登录一次即可 |
-| 字号缩放 | 50%–200% 连续可调，默认 90%（≈16px，小于网页版最小的 18px） |
+| 字号缩放 | 50%–200% 连续可调，默认 100%（≈18px，与网页版最小档持平；仍可手动下调到更小） |
 | 上一页 / 下一页 | 顶栏按钮 + `⌘+←` / `⌘+→` 快捷键 |
 | 自动翻页 | 间隔 3–600 秒可调，翻页期间阻止系统休眠 |
 | 跨屏自愈 | 窗口拖到另一块屏幕后自动重绘，修复正文错位 |
@@ -72,15 +73,32 @@ bodyInnerText.length: 69           // 整页文本只有 69 个字，全是"首�
 
 ```
 weread-pc/
-├── main.js          # 主进程：窗口、webview、换屏重绘、防休眠
+├── main.js          # 主进程：窗口、webview、缓存 IPC、换屏重绘、防休眠
 ├── preload.js       # contextBridge 暴露的 IPC 接口
-├── index.html       # 顶栏 UI
-├── renderer.js      # 控制逻辑：缩放注入、翻页、自动翻页
+├── index.html       # 顶栏 UI + 书架覆盖层 + 翻书 loading
+├── renderer.js      # 控制逻辑：缩放注入、翻页、自动翻页、书架视图切换
+├── shelf-data.js    # 书架数据层（纯函数）：视图模型 / 统计 / 继续阅读 / readerUrl
+├── shelf-fetch.js   # 书架取数桥：webview 同源 fetch + 缓存秒开编排
+├── shelf-view.js    # 书架渲染：清爽网格 + 虚拟滚动（computeRange）
+├── test/            # node:test 单测（shelf-data / fetch / view，共 12 例）
+├── .userdata/       # 登录态与书架缓存（生成物，已 gitignore，见「登录态存储与隐私」）
 ├── probe.js         # DOM 探针：复用登录会话抓取真实页面结构
 └── probe-shot.js    # 截图对比：验证不同缩放方案的渲染效果
 ```
 
 `probe.js` / `probe-shot.js` 是排查这类问题的利器——面对改版后结构不明的页面，与其猜类名，不如直接问页面要答案。
+
+## 登录态存储与隐私
+
+这个项目**不申请、不硬编码任何 API Key**，认证完全复用网页版的登录会话 cookie。
+
+- **登录态怎么来**：webview 用独立持久分区 `partition="persist:weread"`，扫码登录一次后，`weread.qq.com` 的 cookie（含 httpOnly 的 `wr_vid`/`wr_skey`）由 Chromium 自动写入该分区——代码全程不手动读写 cookie。
+- **存在哪**：`main.js` 里 `app.setPath('userData', .userdata)` 把用户数据目录指到项目内的 `.userdata/`。登录 cookie 落在 `.userdata/Partitions/weread/Cookies`（SQLite，权限 `600` 仅本用户可读），书架缓存落在 `.userdata/shelf-cache/shelf.json`。
+- **取数如何带上 cookie**：抓书架是在 webview 页面上下文里做同源 `fetch('/web/shelf/sync', { credentials: 'include' })`，cookie 由浏览器自动附带；httpOnly 的那几个 JS 既读不到、也不需要读。
+- **不会进版本库**：`.gitignore` 已忽略整个 `.userdata/`，从建库起从未提交过，`git push` 不会泄露登录态。
+- **渲染层拿不到原始 cookie**：`preload.js` 只通过 contextBridge 暴露窗口/缓存相关的几个方法，没有任何读 cookie/session/token 的接口。
+
+> ⚠️ cookie 文件明文躺在你本机磁盘上（值按 Chromium 默认经 macOS Keychain 密钥加密），别把 `.userdata/` 整包发人或提交。**登出 / 换账号**：删掉 `.userdata/Partitions/weread/` 即可；**迁移登录态**到新机器：把该目录复制过去。
 
 ## 已知限制
 
