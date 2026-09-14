@@ -1,5 +1,6 @@
 const { app, BrowserWindow, ipcMain, powerSaveBlocker, screen } = require('electron');
 const path = require('path');
+const fs = require('fs');
 
 let win = null;
 let powerSaveId = null;
@@ -18,6 +19,12 @@ function forceRerender() {
 
 // 应用数据（登录态、缓存）存到项目内，保持自包含
 app.setPath('userData', path.join(__dirname, '.userdata'));
+
+// 书架缓存目录（跟随 userData，位于 .userdata/shelf-cache/，已被 .gitignore 忽略）
+const SHELF_CACHE_DIR = path.join(app.getPath('userData'), 'shelf-cache');
+function ensureShelfCacheDir() {
+  try { fs.mkdirSync(SHELF_CACHE_DIR, { recursive: true }); } catch (_) {}
+}
 
 function createWindow() {
   win = new BrowserWindow({
@@ -80,9 +87,30 @@ ipcMain.handle('force-rerender', () => {
 // 把窗口宽度调到单页模式阈值（≤1000px 时阅读器自动单页，消除双页中缝）
 ipcMain.handle('set-window-width', (_, width) => {
   if (!win) return false;
-  const height = win.getSize()[1];
+  // 读内容高度（getContentSize）与 setContentSize 配对；若误用 getSize（外层含标题栏）
+  // 会把外层高当内容高写入，每点一次窗口就累加一个标题栏高度
+  const height = win.getContentSize()[1];
   win.setContentSize(Math.min(1600, Math.max(800, width)), height);
   return true;
+});
+
+// 读取书架缓存（视图模型），无缓存或损坏返回 null
+ipcMain.handle('shelf-cache-read', () => {
+  try {
+    const p = path.join(SHELF_CACHE_DIR, 'shelf.json');
+    if (!fs.existsSync(p)) return null;
+    return JSON.parse(fs.readFileSync(p, 'utf8'));
+  } catch (_) { return null; }
+});
+
+// 写入书架缓存（视图模型）
+ipcMain.handle('shelf-cache-write', (_, viewModel) => {
+  try {
+    ensureShelfCacheDir();
+    const p = path.join(SHELF_CACHE_DIR, 'shelf.json');
+    fs.writeFileSync(p, JSON.stringify(viewModel), 'utf8');
+    return true;
+  } catch (_) { return false; }
 });
 
 app.whenReady().then(createWindow);
