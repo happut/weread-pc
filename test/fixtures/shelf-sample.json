@@ -1,0 +1,14 @@
+{
+  "bookCount": 4,
+  "books": [
+    {"bookId":"b1","title":"书一","author":"甲","cover":"https://cdn.weread.qq.com/x1.jpg","deepLink":"https://weread.qq.com/book-detail?v=1","readUpdateTime":300,"updateTime":100,"finishReading":0},
+    {"bookId":"b2","title":"书二","author":"乙","cover":"https://cdn.weread.qq.com/x2.jpg","deepLink":"https://weread.qq.com/book-detail?v=2","readUpdateTime":200,"updateTime":90,"finishReading":1},
+    {"bookId":"b3","title":"书三","author":"丙","deepLink":"https://weread.qq.com/book-detail?v=3","updateTime":50},
+    {"bookId":"b4","title":"书四","author":"丁","cover":"https://cdn.weread.qq.com/x4.jpg","deepLink":"https://weread.qq.com/book-detail?v=4","updateTime":40,"finishReading":0}
+  ],
+  "bookProgress": [
+    {"bookId":"b1","progress":40,"readingTime":3600,"updateTime":300},
+    {"bookId":"b2","progress":100,"readingTime":7200,"updateTime":200},
+    {"bookId":"b4","progress":0,"readingTime":0,"updateTime":10}
+  ]
+}
