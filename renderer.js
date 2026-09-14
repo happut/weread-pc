@@ -11,8 +11,15 @@ const singlePageBtn = document.getElementById('singlePageBtn');
 const prevBtn = document.getElementById('prevBtn');
 const nextBtn = document.getElementById('nextBtn');
 const statusEl = document.getElementById('status');
+const shelfEl = document.getElementById('shelf');
+const loadingEl = document.getElementById('loading');
 
-let fontSize = 0.9;       // 缩放系数：0.9 = 比网页版最小档（18px）再小一点，约 16px
+let mode = 'shelf';         // 'shelf' | 'reader'
+let shelfBooted = false;    // 首次取数是否已发起
+let currentVM = null;       // 当前视图模型
+let pendingOpen = false;    // 正在打开某本书：等 reader 正文就绪再撤 loading
+
+let fontSize = 1.0;       // 缩放系数：1.0 = 100%，即网页版当前档位字号（最小档 18px）
 let autoTimer = null;
 let domReady = false;     // 由 webview dom-ready 事件维护，比 readyState 属性可靠
 
@@ -93,6 +100,80 @@ function setStatus(text, on) {
   statusEl.className = on ? 'on' : '';
 }
 
+// ---- 书架视图切换 ----
+function showShelf() {
+  mode = 'shelf';
+  shelfEl.classList.add('show');
+}
+function hideShelf() {
+  mode = 'reader';
+  shelfEl.classList.remove('show');
+}
+
+// ---- 全屏 loading（不透明盖住 webview，官方网页界面永不露出）----
+function showLoading() { loadingEl.classList.add('show'); }
+function hideLoading() { loadingEl.classList.remove('show'); }
+
+// 轮询 reader 正文 canvas 是否就绪；就绪或超时后回调（超时兜底，绝不卡死）
+function waitReaderReady(cb, timeoutMs) {
+  const limit = timeoutMs || 6000;
+  const start = Date.now();
+  const timer = setInterval(async () => {
+    let ready = false;
+    try {
+      ready = await webview.executeJavaScript("!!document.querySelector('.wr_canvasContainer canvas')");
+    } catch (_) { ready = false; }
+    if (ready || Date.now() - start > limit) { clearInterval(timer); cb(); }
+  }, 120);
+}
+
+// 正文就绪：先在 loading 遮盖下撤书架层，再撤 loading，露出已渲染好的 reader
+function revealReader() {
+  hideShelf();
+  hideLoading();
+}
+
+function openBook(vm) {
+  const url = window.ShelfView.readerUrlFor(vm);
+  // 盖不透明 loading 后再导航；等 reader 正文 canvas 就绪才撤，全程不露官方网页书架
+  pendingOpen = true;
+  showLoading();
+  webview.loadURL(url).catch(() => {
+    pendingOpen = false;
+    hideLoading();
+    setStatus('打开失败，请重试');
+  });
+}
+
+// 渲染书架；vm 为空则显示空态
+function paintShelf(vm, hintErr) {
+  if (!vm) {
+    window.ShelfView.renderEmpty(shelfEl, hintErr ? '加载失败，请重试' : '书架为空', () => refreshShelf());
+    return;
+  }
+  currentVM = vm;
+  window.ShelfView.render(shelfEl, vm, {
+    onOpen: openBook,
+    onRefresh: () => refreshShelf()
+  });
+}
+
+// 取数并渲染：先缓存秒开，再后台刷新
+async function refreshShelf() {
+  const r = await window.ShelfFetch.loadShelf(webview, window.wereadPC);
+  const vm = r.fresh || r.cached;
+  if (vm) {
+    paintShelf(vm);
+    showShelf();
+    hideLoading();
+    if (r.err && r.cached) setStatus('刷新失败，展示上次数据');
+  } else {
+    // 无数据（多半未登录）：撤 loading，停在 webview 登录页
+    hideShelf();
+    hideLoading();
+  }
+}
+
 function startAuto() {
   const sec = Math.max(3, parseInt(intervalInput.value, 10) || 30);
   intervalInput.value = sec;
@@ -143,7 +224,8 @@ singlePageBtn.addEventListener('click', () => {
   if (window.wereadPC) window.wereadPC.setWindowWidth(1000);
 });
 homeBtn.addEventListener('click', () => {
-  webview.loadURL('https://weread.qq.com/web/shelf');
+  showShelf();
+  refreshShelf(); // 返回书架时后台刷新进度
 });
 intervalInput.addEventListener('change', () => {
   if (autoTimer) { stopAuto(); startAuto(); } // 修改间隔后重启
@@ -162,4 +244,29 @@ window.addEventListener('keydown', (e) => {
 webview.addEventListener('dom-ready', () => {
   domReady = true;
   applyFont(); // 整页跳转后缩放会丢失，重新应用
+  // 正在打开某本书：等 reader 正文 canvas 就绪后再撤 loading（全程不露网页版）
+  if (pendingOpen) {
+    pendingOpen = false;
+    waitReaderReady(revealReader);
+    return;
+  }
+  // 仅在书架模式下、且首次：拉取书架数据并展示覆盖层
+  if (mode === 'shelf' && !shelfBooted) {
+    shelfBooted = true;
+    refreshShelf();
+  }
 });
+
+// 启动：有缓存则秒开书架（无需 loading）；无缓存则盖不透明 loading，
+// 等 dom-ready→refreshShelf 决定（书架 or 未登录登录页）。官方网页书架全程不露出。
+(async function bootShelfFromCache() {
+  if (!window.wereadPC || !window.ShelfView) return;
+  let cached = null;
+  try { cached = await window.wereadPC.readShelfCache(); } catch (_) { cached = null; }
+  if (cached && mode === 'shelf') {
+    paintShelf(cached);
+    showShelf();
+  } else {
+    showLoading();
+  }
+})();
