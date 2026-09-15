@@ -10,7 +10,6 @@ APP_NAME="WeRead-PC"
 VERSION=$(node -p "require('./package.json').version")
 OUT_DIR="release"
 APP_DIR="$OUT_DIR/$APP_NAME.app"
-RUNTIME_FILES="package.json main.js preload.js index.html renderer.js"
 
 echo "==> 清理旧构建产物"
 rm -rf "$OUT_DIR"
@@ -22,11 +21,11 @@ ditto node_modules/electron/dist/Electron.app "$APP_DIR"
 echo "==> 注入应用源码"
 rm -rf "$APP_DIR/Contents/Resources/default_app.asar"
 mkdir -p "$APP_DIR/Contents/Resources/app"
-for f in $RUNTIME_FILES; do
-  cp "$f" "$APP_DIR/Contents/Resources/app/"
+# 根级全部运行时模块（主进程 require + index.html script 引用），
+# 用 glob 兜底，避免新增模块后打包漏文件产出坏包
+for f in *.js index.html package.json LICENSE; do
+  [ -f "$f" ] && cp "$f" "$APP_DIR/Contents/Resources/app/"
 done
-# 顺手带上协议和说明
-cp LICENSE "$APP_DIR/Contents/Resources/app/" 2>/dev/null || true
 
 echo "==> 更新 Info.plist"
 PLIST="$APP_DIR/Contents/Info.plist"
