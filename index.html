@@ -127,7 +127,7 @@
 
     /* ===== 原生书架覆盖层（方向2 清爽网格）===== */
     #shelf {
-      position: fixed; inset: 0; z-index: 10;
+      position: fixed; top: 52px; left: 0; right: 0; bottom: 0; z-index: 10;
       display: none; flex-direction: column;
       background: #fafbfc; color: var(--text);
     }
@@ -208,6 +208,104 @@
     .grid-cell .book-card { width: 100%; }
 
     .shelf-empty { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; color: var(--text-dim); }
+
+    /* ===== 书库顶栏双 Tab ===== */
+    #libtabs {
+      position: fixed; top: 0; left: 0; right: 0; height: 52px; z-index: 12;
+      display: none; align-items: center; gap: 6px; padding: 0 16px;
+      background: var(--bar-bg); border-bottom: 1px solid var(--bar-border);
+      -webkit-user-select: none; user-select: none;
+    }
+    body.library-mode #libtabs { display: flex; }
+    #libtabs .tab {
+      height: 52px; padding: 0 14px; border: none; border-radius: 0; background: transparent;
+      box-shadow: none; font-size: 14px; color: var(--text-dim); position: relative;
+    }
+    #libtabs .tab:hover { background: transparent; color: var(--text); }
+    #libtabs .tab.active { color: var(--accent); font-weight: 600; }
+    #libtabs .tab.active::after {
+      content: ''; position: absolute; left: 14px; right: 14px; bottom: 0; height: 2px;
+      background: var(--accent); border-radius: 2px 2px 0 0;
+    }
+    .icon-btn { width: 32px; padding: 0; font-size: 16px; }
+
+    /* ===== 统计看板 ===== */
+    #stats {
+      position: fixed; top: 52px; left: 0; right: 0; bottom: 0; z-index: 10;
+      display: none; overflow-y: auto; background: #fafbfc; padding: 18px 22px 40px;
+    }
+    #stats.show { display: block; }
+    .stat-card { background: #fff; border: 1px solid #eef0f3; border-radius: 12px; padding: 16px 18px; margin-bottom: 16px; box-shadow: 0 1px 3px rgba(16,18,24,.06); }
+    .stat-h { font-size: 13px; color: var(--text-dim); margin-bottom: 12px; }
+    .heat { display: grid; grid-auto-flow: column; grid-template-rows: repeat(7, 12px); gap: 3px; overflow-x: auto; }
+    .heat i { width: 12px; height: 12px; border-radius: 2px; background: #ebedf0; }
+    .heat i.lv1 { background: #c6e48b; } .heat i.lv2 { background: #7bc96f; }
+    .heat i.lv3 { background: #239a3b; } .heat i.lv4 { background: #196127; }
+    .dur-row { display: flex; gap: 14px; flex-wrap: wrap; }
+    .dur { flex: 1; min-width: 120px; }
+    .dur b { font-size: 26px; font-variant-numeric: tabular-nums; }
+    .dur span { font-size: 12px; color: var(--text-dim); margin-left: 2px; }
+    .dur small { display: block; font-size: 12px; color: var(--text-dim); margin-top: 2px; }
+    .cmp-up { color: #1f9254; } .cmp-down { color: #d1495b; }
+    .pref-row { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; font-size: 12px; }
+    .pref-row .name { width: 72px; flex: none; color: var(--text); }
+    .pref-row .track { flex: 1; height: 8px; background: #eef0f3; border-radius: 4px; overflow: hidden; }
+    .pref-row .track > i { display: block; height: 100%; background: var(--accent); }
+    .pref-row .pct { width: 40px; flex: none; text-align: right; color: var(--text-dim); }
+    .top-row { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+    .top-row img { width: 34px; height: 46px; border-radius: 4px; object-fit: cover; background: #eef1f5; }
+    .top-row .t { flex: 1; font-size: 13px; }
+    .top-row .h { font-size: 12px; color: var(--text-dim); font-variant-numeric: tabular-nums; }
+    .streak { display: flex; gap: 22px; align-items: center; }
+    .streak .n { font-size: 30px; font-weight: 600; font-variant-numeric: tabular-nums; }
+    .stat-empty { color: var(--text-dim); font-size: 13px; text-align: center; padding: 40px 0; }
+    .stat-empty button { margin-top: 12px; }
+
+    /* ===== 详情侧栏 ===== */
+    #detail {
+      position: fixed; top: 0; right: 0; bottom: 0; width: 380px; z-index: 15;
+      background: #fff; border-left: 1px solid var(--bar-border); box-shadow: -6px 0 24px rgba(16,18,24,.10);
+      transform: translateX(100%); transition: transform .22s ease; display: flex; flex-direction: column;
+    }
+    #detail.show { transform: translateX(0); }
+    .dt-head { flex: none; display: flex; gap: 12px; padding: 16px; border-bottom: 1px solid #eef0f3; }
+    .dt-head img { width: 72px; height: 96px; border-radius: 6px; object-fit: cover; background: #eef1f5; }
+    .dt-head .m { flex: 1; min-width: 0; }
+    .dt-head .ti { font-size: 16px; font-weight: 600; line-height: 1.3; }
+    .dt-head .au { font-size: 12px; color: var(--text-dim); margin-top: 4px; }
+    .dt-head .ra { font-size: 12px; color: #f0a020; margin-top: 6px; }
+    .dt-close { position: absolute; top: 10px; right: 12px; border: none; background: transparent; font-size: 18px; color: var(--text-dim); width: 28px; padding: 0; }
+    .dt-tabs { flex: none; display: flex; gap: 4px; padding: 0 12px; border-bottom: 1px solid #eef0f3; }
+    .dt-tabs button { height: 38px; border: none; border-radius: 0; background: transparent; box-shadow: none; font-size: 13px; color: var(--text-dim); position: relative; }
+    .dt-tabs button.active { color: var(--accent); font-weight: 600; }
+    .dt-tabs button.active::after { content: ''; position: absolute; left: 10px; right: 10px; bottom: 0; height: 2px; background: var(--accent); }
+    .dt-body { flex: 1; overflow-y: auto; padding: 14px 16px; }
+    .dt-read { margin: 0 16px 12px; }
+    .meta-row { display: flex; gap: 8px; font-size: 13px; padding: 5px 0; }
+    .meta-row .k { width: 56px; flex: none; color: var(--text-dim); }
+    .intro { font-size: 13px; line-height: 1.7; color: #4a4f5a; margin-top: 10px; }
+    .review { border-left: 3px solid var(--accent-soft); padding: 8px 12px; margin-bottom: 12px; background: #fafbfc; border-radius: 0 6px 6px 0; }
+    .review .who { font-size: 12px; color: var(--text-dim); margin-bottom: 4px; }
+    .review .txt { font-size: 13px; line-height: 1.6; }
+    .dt-empty { color: var(--text-dim); font-size: 13px; text-align: center; padding: 30px 0; }
+
+    /* ===== 设置模态 ===== */
+    #settings { position: fixed; inset: 0; z-index: 30; display: none; align-items: center; justify-content: center; background: rgba(16,18,24,.32); }
+    #settings.show { display: flex; }
+    .stg { width: 420px; max-height: 82vh; overflow-y: auto; background: #fff; border-radius: 12px; box-shadow: 0 12px 40px rgba(16,18,24,.24); }
+    .stg-hd { display: flex; align-items: center; padding: 14px 18px; border-bottom: 1px solid #eef0f3; font-size: 15px; font-weight: 600; }
+    .stg-hd .x { margin-left: auto; border: none; background: transparent; font-size: 18px; color: var(--text-dim); width: 28px; padding: 0; }
+    .stg-sec { padding: 14px 18px; border-bottom: 1px solid #f2f4f7; }
+    .stg-lbl { font-size: 12px; color: var(--text-dim); margin-bottom: 8px; }
+    .conn-pill { display: inline-block; padding: 2px 10px; border-radius: 12px; font-size: 12px; font-weight: 600; }
+    .conn-ok { background: #eafaf1; color: #1f9254; } .conn-no { background: #fdecec; color: #d1495b; } .conn-warn { background: #fff5e6; color: #c77700; }
+    .keybox { font-family: ui-monospace, Menlo, monospace; background: #f5f7fa; border: 1px solid #e6e9ee; border-radius: 6px; padding: 4px 8px; font-size: 12px; color: #5b6472; }
+    .stg input[type=text], .stg textarea { width: 100%; border: 1px solid var(--bar-border); border-radius: 6px; padding: 6px 8px; font-size: 12px; font-family: inherit; margin-bottom: 8px; }
+    .stg details summary { cursor: pointer; font-size: 13px; color: var(--accent); }
+    .stg-ft { padding: 12px 18px; font-size: 11px; color: var(--text-dim); line-height: 1.6; }
+
+    /* ===== 首次气泡引导 ===== */
+    .bubble { position: fixed; z-index: 25; background: #2c2f36; color: #fff; font-size: 12px; padding: 8px 12px; border-radius: 8px; box-shadow: 0 4px 16px rgba(0,0,0,.2); max-width: 240px; }
   </style>
 </head>
 <body data-page-node-id="erUpXCxPessy51XegkwCFK">
@@ -254,6 +352,12 @@
   <div id="wrap" data-page-node-id="ZsOtHB5CM0U8vtMH9SotTI">
     <webview id="weread" src="https://weread.qq.com/web/shelf" partition="persist:weread" allowpopups="false" data-page-node-id="GYiNRdTz0mMYnG1HhzsmSg"></webview>
   </div>
+  <div id="libtabs">
+    <button class="tab active" id="tabShelf">书架</button>
+    <button class="tab" id="tabStats">统计</button>
+    <span class="spacer"></span>
+    <button class="icon-btn" id="settingsBtn" title="设置">⚙</button>
+  </div>
   <div id="shelf"></div>
   <div id="loading">
     <div class="book">
@@ -264,9 +368,18 @@
     </div>
     <div class="loading-text">正在翻开…</div>
   </div>
+  <div id="stats"></div>
+  <div id="detail"></div>
+  <div id="settings"></div>
   <script src="shelf-data.js"></script>
   <script src="shelf-fetch.js"></script>
   <script src="shelf-view.js"></script>
+  <script src="weread-auth.js"></script>
+  <script src="stats-data.js"></script>
+  <script src="book-detail-data.js"></script>
+  <script src="stats-view.js"></script>
+  <script src="detail-view.js"></script>
+  <script src="settings-view.js"></script>
   <script src="renderer.js"></script>
 </body>
 </html>
