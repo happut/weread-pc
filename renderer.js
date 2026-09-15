@@ -299,6 +299,49 @@ function showBubbleOnce() {
 }
 function closeBubble() { if (bubbleEl) { bubbleEl.remove(); bubbleEl = null; } }
 
+// ---- 设置模态 ----
+function openSettings() {
+  settingsEl.classList.add('show');
+  renderSettings();
+}
+function closeSettings() { settingsEl.classList.remove('show'); }
+async function renderSettings() {
+  let auth = null;
+  try { auth = await window.wereadPC.readAuth(); } catch (_) { auth = null; }
+  auth = auth || {};
+  const resolved = window.WereadAuth.resolveAuth(auth);
+  const model = {
+    mode: resolved.mode,
+    source: resolved.source,
+    maskedKey: resolved.key ? window.WereadAuth.maskKey(resolved.key) : '',
+    manualKey: auth.manualKey || '',
+    manualCookie: auth.manualCookie || ''
+  };
+  window.SettingsView.render(settingsEl, model, {
+    onClose: closeSettings,
+    onSaveManual: async (m) => {
+      const next = Object.assign({}, auth, {
+        manualKey: String((m && m.key) || '').trim(),
+        manualCookie: String((m && m.cookie) || '').trim()
+      });
+      await window.wereadPC.writeAuth(next);
+      await renderSettings();
+      if (libTab === 'stats') loadStats();   // 保存后立即用新凭证重取
+    },
+    onClearManual: async () => {
+      const next = Object.assign({}, auth, { manualKey: '', manualCookie: '' });
+      await window.wereadPC.writeAuth(next);
+      await renderSettings();
+    },
+    onRetryAuto: async () => {
+      await tryAutoKey();
+      await renderSettings();
+      if (libTab === 'stats') loadStats();
+    },
+    onRefreshStats: () => { closeSettings(); showStats(); }
+  });
+}
+
 function startAuto() {
   const sec = Math.max(3, parseInt(intervalInput.value, 10) || 30);
   intervalInput.value = sec;
