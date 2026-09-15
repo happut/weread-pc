@@ -1,6 +1,8 @@
 const { app, BrowserWindow, ipcMain, powerSaveBlocker, screen } = require('electron');
 const path = require('path');
 const fs = require('fs');
+const WereadAuth = require('./weread-auth.js');
+const WereadApi = require('./weread-api.js');
 
 let win = null;
 let powerSaveId = null;
@@ -25,6 +27,14 @@ const SHELF_CACHE_DIR = path.join(app.getPath('userData'), 'shelf-cache');
 function ensureShelfCacheDir() {
   try { fs.mkdirSync(SHELF_CACHE_DIR, { recursive: true }); } catch (_) {}
 }
+
+// auth / 统计 / 详情缓存（均在 .userdata/ 下，已 gitignore）
+const AUTH_PATH = path.join(app.getPath('userData'), 'auth.json');
+const STATS_CACHE_DIR = path.join(app.getPath('userData'), 'stats-cache');
+const BOOK_CACHE_DIR = path.join(app.getPath('userData'), 'book-cache');
+function ensureDir(d) { try { fs.mkdirSync(d, { recursive: true }); } catch (_) {} }
+function readJson(p) { try { return fs.existsSync(p) ? JSON.parse(fs.readFileSync(p, 'utf8')) : null; } catch (_) { return null; } }
+function writeJson(p, v) { try { fs.writeFileSync(p, JSON.stringify(v), 'utf8'); return true; } catch (_) { return false; } }
 
 function createWindow() {
   win = new BrowserWindow({
@@ -111,6 +121,33 @@ ipcMain.handle('shelf-cache-write', (_, viewModel) => {
     fs.writeFileSync(p, JSON.stringify(viewModel), 'utf8');
     return true;
   } catch (_) { return false; }
+});
+
+// 认证：auth.json（自动 Key + 手动覆盖 + 失效标记 + 来源 + 更新时间；敏感，不打印）
+ipcMain.handle('auth-read', () => readJson(AUTH_PATH));
+ipcMain.handle('auth-write', (_, auth) => writeJson(AUTH_PATH, auth || {}));
+
+// 统计缓存（看板视图模型）
+ipcMain.handle('stats-cache-read', () => readJson(path.join(STATS_CACHE_DIR, 'stats.json')));
+ipcMain.handle('stats-cache-write', (_, vm) => { ensureDir(STATS_CACHE_DIR); return writeJson(path.join(STATS_CACHE_DIR, 'stats.json'), vm); });
+
+// 书籍详情缓存（按 bookId 分文件）
+ipcMain.handle('book-cache-read', (_, bookId) => readJson(path.join(BOOK_CACHE_DIR, String(bookId) + '.json')));
+ipcMain.handle('book-cache-write', (_, bookId, vm) => { ensureDir(BOOK_CACHE_DIR); return writeJson(path.join(BOOK_CACHE_DIR, String(bookId) + '.json'), vm); });
+
+// Agent 取数：主进程读 auth → resolveAuth → key 模式才能走网关（cookie 模式无法驱动 Bearer 网关，降级）
+function resolveCurrentAuth() { return WereadAuth.resolveAuth(readJson(AUTH_PATH) || {}); }
+ipcMain.handle('weread-fetch-stats', async () => {
+  const r = resolveCurrentAuth();
+  if (r.mode !== 'key') return { ok: false, reason: 'no-key' };
+  try { return await WereadApi.fetchStatsBundle(r.key); }
+  catch (e) { return { ok: false, reason: 'fetch-failed', message: String((e && e.message) || e) }; }
+});
+ipcMain.handle('weread-fetch-book', async (_, bookId) => {
+  const r = resolveCurrentAuth();
+  if (r.mode !== 'key') return { ok: false, reason: 'no-key' };
+  try { return await WereadApi.fetchBookBundle(r.key, String(bookId)); }
+  catch (e) { return { ok: false, reason: 'fetch-failed', message: String((e && e.message) || e) }; }
 });
 
 app.whenReady().then(createWindow);
