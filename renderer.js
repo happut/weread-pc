@@ -244,6 +244,7 @@ async function loadStats() {
 
 // ---- 详情侧栏 ----
 const DETAIL_TTL = 7 * 24 * 3600 * 1000;   // 7 天
+let currentDetailBookId = null;   // 当前详情侧栏对应的 bookId，用于异步竞态守卫
 function detailHandlers(vm) {
   return { onClose: closeDetail, onRead: () => openBook(vm) };
 }
@@ -251,6 +252,7 @@ function detailHandlers(vm) {
 function openDetail(vm) {
   if (!vm || !vm.bookId) return;
   closeBubble();
+  currentDetailBookId = vm.bookId;   // 标记当前请求，供 loadDetail 竞态守卫
   detailEl.classList.add('show');
   const h = detailHandlers(vm);
   // 先用书架 VM 画占位（封面/书名立即可见），再后台补详情
@@ -271,19 +273,21 @@ async function loadDetail(bookId, handlers) {
   const h = handlers || { onClose: closeDetail };
   let cached = null;
   try { cached = await window.wereadPC.readBookCache(bookId); } catch (_) { cached = null; }
+  if (currentDetailBookId !== bookId) return;   // 已切到别的书/已关闭，丢弃过期结果
   if (cached && cached.vm && cached.fetchedAt && (Date.now() - cached.fetchedAt) < DETAIL_TTL) {
     window.DetailView.render(detailEl, cached.vm, h);
     return;   // 命中未过期缓存，不再打网络
   }
   let bundle = null;
   try { bundle = await window.wereadPC.fetchBook(bookId); } catch (_) { bundle = null; }
+  if (currentDetailBookId !== bookId) return;   // 已切到别的书/已关闭，丢弃过期结果
   const vm = window.BookDetailData.buildDetailViewModel(bundle || { ok: false, info: { bookId: bookId } });
   window.DetailView.render(detailEl, vm, h);
   if (bundle && bundle.ok) {
     try { await window.wereadPC.writeBookCache(bookId, { fetchedAt: Date.now(), vm: vm }); } catch (_) {}
   }
 }
-function closeDetail() { detailEl.classList.remove('show'); }
+function closeDetail() { detailEl.classList.remove('show'); currentDetailBookId = null; }
 
 // ---- 首次气泡引导（localStorage 记忆，只弹一次）----
 function showBubbleOnce() {

@@ -103,10 +103,13 @@
 
     container.appendChild(panel);
 
-    // 点遮罩空白处关闭（只绑一次，避免反复 render 累积监听）
+    // 点遮罩空白处关闭（只绑一次监听；handler 存 container 上动态读取，避免闭包固化首次 h）
+    container._stgHandlers = h;
     if (!container._overlayBound) {
       container._overlayBound = true;
-      container.addEventListener('click', function (e) { if (e.target === container && h.onClose) h.onClose(); });
+      container.addEventListener('click', function (e) {
+        if (e.target === container && container._stgHandlers && container._stgHandlers.onClose) container._stgHandlers.onClose();
+      });
     }
   }
 

@@ -111,8 +111,8 @@
       b.addEventListener('click', () => h.onSettings && h.onSettings());
       box.appendChild(b);
       container.appendChild(box);
-      if (vm && vm.preference.length) container.appendChild(renderPreference(vm));   // 退化仍可用
-      if (vm && vm.topBooks.length) container.appendChild(renderTopBooks(vm, h.onOpenBook));
+      if (vm && (vm.preference || []).length) container.appendChild(renderPreference(vm));   // 退化仍可用
+      if (vm && (vm.topBooks || []).length) container.appendChild(renderTopBooks(vm, h.onOpenBook));
       return;
     }
     container.appendChild(renderDurations(vm));
