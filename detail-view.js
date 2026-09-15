@@ -81,10 +81,6 @@
     const h = handlers || {};
     const v = vm || {};
 
-    const close = el('button', 'dt-close', '✕');
-    close.addEventListener('click', function () { h.onClose && h.onClose(); });
-    container.appendChild(close);
-
     const head = el('div', 'dt-head');
     if (v.cover) { const img = el('img'); img.src = v.cover; img.alt = v.title || ''; head.appendChild(img); }
     const m = el('div', 'm');
@@ -92,6 +88,11 @@
     if (v.author) m.appendChild(el('div', 'au', v.author));
     if (v.rating) m.appendChild(el('div', 'ra', (v.rating / 10).toFixed(1) + ' 分' + (v.ratingCount ? ' · ' + v.ratingCount + '人评' : '')));
     head.appendChild(m);
+    // 关闭按钮放在头部行末（书名右侧），常驻可见，不用绝对定位压标题
+    const close = el('button', 'dt-close', '✕');
+    close.title = '关闭（Esc）';
+    close.addEventListener('click', function () { h.onClose && h.onClose(); });
+    head.appendChild(close);
     container.appendChild(head);
 
     const readBtn = el('button', 'primary dt-read', '开始阅读');

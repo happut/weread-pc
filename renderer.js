@@ -20,6 +20,9 @@ const settingsBtn = document.getElementById('settingsBtn');
 const statsEl = document.getElementById('stats');
 const detailEl = document.getElementById('detail');
 const settingsEl = document.getElementById('settings');
+const floatTurnEl = document.getElementById('floatTurn');
+const floatPrevBtn = document.getElementById('floatPrevBtn');
+const floatNextBtn = document.getElementById('floatNextBtn');
 
 let mode = 'shelf';         // 'shelf' | 'reader'
 let shelfBooted = false;    // 首次取数是否已发起
@@ -104,7 +107,76 @@ function applyFont() {
   fontLabel.textContent = Math.round(fontSize * 100) + '% ≈ ' + approxPx + 'px';
   if (domReady) {
     webview.executeJavaScript(zoomJs(fontSize)).catch(() => {});
+    applySideMargin();   // 缩放变了重算两侧边距（公式含 zoom）
   }
+}
+
+// ---- 两侧边距：反推页容器宽，让书页 canvas 显示后每侧正好留 SIDE_MARGIN ----
+// 网页版版式事实（实测）：.readerChapterContent 由 JS 算宽 + 字号档 max-width 居中，
+// 容器内还给 canvas 留 gap≈138px 居中空隙；改容器宽后派发 resize，
+// canvas 会按新 CSS 宽重排（位图按 DPR 倍数重绘，清晰）。
+// 公式：容器宽 = (视口宽 − 2×边距)/zoom + gap；容器左右 margin = 边距 − 容器内边距 − gap/2×zoom。
+// 注意：只覆盖 margin-left/right；原 margin-top 是避开网页版自带顶栏的，动它正文会钻到顶栏后面被遮挡。
+// 仅单页模式（窗宽 ≤1000px）生效；拉宽超阈自动恢复双页原版式。
+const SIDE_MARGIN = 40;
+const marginJs = (z, m) => `
+(function () {
+  const M = ${m}, Z = ${z};
+  const apply = (n) => {
+    const cc = document.querySelector('.readerChapterContent');
+    const cv = document.querySelector('.wr_canvasContainer canvas');
+    // SPA 尚在初始化、元素未挂载也重试，注入脚本自收敛，不依赖外部再调一次
+    if (!cc || !cv) { if (n > 0) setTimeout(() => apply(n - 1), 200); return; }
+    const cw0 = cv.getBoundingClientRect().width;
+    // canvas 刚挂载尚未定宽时宽为 0：此刻量 gap 会把容器宽算成离谱值 → 整页空白，
+    // 故量不到就延时重试
+    if (cw0 < 50) { if (n > 0) setTimeout(() => apply(n - 1), 200); return; }
+    const padL = parseFloat(getComputedStyle(cc).paddingLeft) || 0;
+    const gap = (cc.getBoundingClientRect().width - 2 * padL) - cw0 / Z;
+    if (!(gap >= 0 && gap <= 400)) { if (n > 0) setTimeout(() => apply(n - 1), 200); return; }
+    const mg = M - padL - (gap / 2) * Z;
+    const css = '@media (max-width: 1000px) { .readerChapterContent { max-width: none !important;'
+      + ' width: calc((100vw - ${2 * m}px)/' + Z + ' + ' + gap + 'px) !important;'
+      + ' margin-left: ' + mg + 'px !important;'
+      + ' margin-right: ' + mg + 'px !important; } }';
+    const old = document.getElementById('wb-content-margin');
+    if (old && old.textContent === css) return;   // 无变化不触发重排
+    const st = old || document.createElement('style');
+    st.id = 'wb-content-margin';
+    st.textContent = css;
+    if (!old) document.head.appendChild(st);
+    window.dispatchEvent(new Event('resize'));
+    heal(2);
+  };
+  // 兜底自愈：重排后若正文没画出来（网页版偶发重排失败、整页空白），补发 resize 重试
+  const heal = (n) => {
+    setTimeout(() => {
+      const cv = document.querySelector('.wr_canvasContainer canvas');
+      if (!cv || cv.getBoundingClientRect().width < 50) {
+        if (n > 0) { window.dispatchEvent(new Event('resize')); heal(n - 1); }
+        return;
+      }
+      let ink = false;
+      try {
+        const ctx = cv.getContext('2d');
+        const w = cv.width, h = cv.height;
+        for (let i = 1; i <= 12 && !ink; i++) {
+          const y = Math.round(h * (0.2 + 0.6 * i / 13));
+          const d = ctx.getImageData(0, y, w, 1).data;
+          for (let x = 4; x < d.length; x += 4) {
+            if (Math.abs(d[x] - d[0]) + Math.abs(d[x + 1] - d[1]) + Math.abs(d[x + 2] - d[2]) > 24) { ink = true; break; }
+          }
+        }
+      } catch (_) { ink = true; }   // 读不到像素视为正常，不误触
+      if (!ink && n > 0) { window.dispatchEvent(new Event('resize')); heal(n - 1); }
+    }, 1500);
+  };
+  apply(25);
+})();
+`;
+
+function applySideMargin() {
+  if (domReady) webview.executeJavaScript(marginJs(fontSize, SIDE_MARGIN)).catch(() => {});
 }
 
 function setStatus(text, on) {
@@ -116,9 +188,11 @@ function setStatus(text, on) {
 function setLibraryMode(on) {
   document.body.classList.toggle('library-mode', !!on);
 }
+function setFloatTurn(on) { floatTurnEl.classList.toggle('show', !!on); }
 function showShelf() {
   mode = 'shelf'; libTab = 'shelf';
   setLibraryMode(true);
+  setFloatTurn(false);
   shelfEl.classList.add('show');
   statsEl.classList.remove('show');
   tabShelf.classList.add('active'); tabStats.classList.remove('active');
@@ -126,6 +200,7 @@ function showShelf() {
 function showStats() {
   mode = 'shelf'; libTab = 'stats';
   setLibraryMode(true);
+  setFloatTurn(false);
   shelfEl.classList.remove('show');
   statsEl.classList.add('show');
   tabStats.classList.add('active'); tabShelf.classList.remove('active');
@@ -159,6 +234,8 @@ function waitReaderReady(cb, timeoutMs) {
 function revealReader() {
   hideShelf();
   hideLoading();
+  setFloatTurn(true);   // 阅读视图才露出右下角悬浮翻页钮
+  applySideMargin();    // canvas 就绪后才能量 gap、应用两侧边距
 }
 
 function openBook(vm) {
@@ -261,13 +338,17 @@ function openDetail(vm) {
   }), h);
   loadDetail(vm.bookId, h);
 }
+// 书架 VM 里找该书（含 bookId/title/cover 等）；找不到退化为最小信息
+function shelfBookInfo(bookId) {
+  if (currentVM && currentVM.allBooks) {
+    const b = currentVM.allBooks.filter(x => String(x.bookId) === String(bookId))[0];
+    if (b) return b;
+  }
+  return { bookId: String(bookId) };
+}
 // 从统计 TOP5 点开：先在书架 VM 里找，找不到用最小信息
 function openDetailById(bookId) {
-  let vm = null;
-  if (currentVM && currentVM.allBooks) {
-    vm = currentVM.allBooks.filter(b => String(b.bookId) === String(bookId))[0] || null;
-  }
-  openDetail(vm || { bookId: String(bookId) });
+  openDetail(shelfBookInfo(bookId));
 }
 async function loadDetail(bookId, handlers) {
   const h = handlers || { onClose: closeDetail };
@@ -281,7 +362,9 @@ async function loadDetail(bookId, handlers) {
   let bundle = null;
   try { bundle = await window.wereadPC.fetchBook(bookId); } catch (_) { bundle = null; }
   if (currentDetailBookId !== bookId) return;   // 已切到别的书/已关闭，丢弃过期结果
-  const vm = window.BookDetailData.buildDetailViewModel(bundle || { ok: false, info: { bookId: bookId } });
+  // 取数失败（无 Key/离线）时用书架信息兜底，避免占位的书名/封面被冲成“未知书名”
+  const vm = window.BookDetailData.buildDetailViewModel(
+    (bundle && bundle.ok) ? bundle : { ok: false, info: shelfBookInfo(bookId) });
   window.DetailView.render(detailEl, vm, h);
   if (bundle && bundle.ok) {
     try { await window.wereadPC.writeBookCache(bookId, { fetchedAt: Date.now(), vm: vm }); } catch (_) {}
@@ -387,6 +470,12 @@ prevBtn.addEventListener('click', () => {
 nextBtn.addEventListener('click', () => {
   webview.executeJavaScript(TURN_JS).catch(() => {});
 });
+floatPrevBtn.addEventListener('click', () => {
+  webview.executeJavaScript(TURN_PREV_JS).catch(() => {});
+});
+floatNextBtn.addEventListener('click', () => {
+  webview.executeJavaScript(TURN_JS).catch(() => {});
+});
 rerenderBtn.addEventListener('click', () => {
   if (window.wereadPC) window.wereadPC.forceRerender();
   setTimeout(applyFont, 400); // 重排后补回缩放样式
@@ -408,6 +497,12 @@ intervalInput.addEventListener('change', () => {
 });
 
 window.addEventListener('keydown', (e) => {
+  // Esc：设置模态优先关，其次关详情侧栏
+  if (e.key === 'Escape') {
+    if (settingsEl.classList.contains('show')) closeSettings();
+    else if (detailEl.classList.contains('show')) closeDetail();
+    return;
+  }
   if (!(e.metaKey || e.ctrlKey)) return;
   if (e.key === 'ArrowRight') {
     webview.executeJavaScript(TURN_JS).catch(() => {});

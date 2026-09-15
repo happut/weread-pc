@@ -274,7 +274,12 @@
     .dt-head .ti { font-size: 16px; font-weight: 600; line-height: 1.3; }
     .dt-head .au { font-size: 12px; color: var(--text-dim); margin-top: 4px; }
     .dt-head .ra { font-size: 12px; color: #f0a020; margin-top: 6px; }
-    .dt-close { position: absolute; top: 10px; right: 12px; border: none; background: transparent; font-size: 18px; color: var(--text-dim); width: 28px; padding: 0; }
+    .dt-head .dt-close {
+      flex: none; align-self: flex-start; width: 28px; height: 28px; margin: -2px -6px 0 0;
+      padding: 0; border: none; border-radius: 6px; background: transparent; box-shadow: none;
+      font-size: 16px; color: var(--text-dim);
+    }
+    .dt-head .dt-close:hover { background: var(--hover); color: var(--text); }
     .dt-tabs { flex: none; display: flex; gap: 4px; padding: 0 12px; border-bottom: 1px solid #eef0f3; }
     .dt-tabs button { height: 38px; border: none; border-radius: 0; background: transparent; box-shadow: none; font-size: 13px; color: var(--text-dim); position: relative; }
     .dt-tabs button.active { color: var(--accent); font-weight: 600; }
@@ -288,6 +293,21 @@
     .review .who { font-size: 12px; color: var(--text-dim); margin-bottom: 4px; }
     .review .txt { font-size: 13px; line-height: 1.6; }
     .dt-empty { color: var(--text-dim); font-size: 13px; text-align: center; padding: 30px 0; }
+
+    /* ===== 右下角悬浮翻页按钮（仅阅读视图）===== */
+    #floatTurn {
+      position: fixed; right: 28px; bottom: 28px; z-index: 14;
+      display: none; gap: 14px;
+    }
+    #floatTurn.show { display: flex; }
+    #floatTurn button {
+      width: 48px; height: 48px; padding: 0; border: none; border-radius: 50%;
+      background: rgba(255,255,255,.92); color: var(--text);
+      box-shadow: 0 4px 14px rgba(16,18,24,.18);
+      transition: background .12s, color .12s, box-shadow .12s, transform .12s;
+    }
+    #floatTurn button:hover { background: #fff; color: var(--accent); box-shadow: 0 6px 18px rgba(16,18,24,.26); }
+    #floatTurn button:active { transform: scale(.94); box-shadow: 0 2px 8px rgba(16,18,24,.2); }
 
     /* ===== 设置模态 ===== */
     #settings { position: fixed; inset: 0; z-index: 30; display: none; align-items: center; justify-content: center; background: rgba(16,18,24,.32); }
@@ -370,6 +390,14 @@
   </div>
   <div id="stats"></div>
   <div id="detail"></div>
+  <div id="floatTurn">
+    <button id="floatPrevBtn" title="上一页（⌘+←）">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
+    </button>
+    <button id="floatNextBtn" title="下一页（⌘+→）">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
+    </button>
+  </div>
   <div id="settings"></div>
   <script src="shelf-data.js"></script>
   <script src="shelf-fetch.js"></script>

@@ -40,7 +40,9 @@ function safeCacheName(id) { return String(id || '').replace(/[^a-zA-Z0-9_-]/g, 
 
 function createWindow() {
   win = new BrowserWindow({
-    width: 1200,
+    // 默认单页展示：阅读器在宽 ≤1000px 时自动单页（消除双页中缝）；
+    // 想双页时手动拉宽窗口即可，「单页」按钮可随时调回
+    width: 1000,
     height: 840,
     minWidth: 900,
     minHeight: 600,
