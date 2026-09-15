@@ -35,6 +35,8 @@ const BOOK_CACHE_DIR = path.join(app.getPath('userData'), 'book-cache');
 function ensureDir(d) { try { fs.mkdirSync(d, { recursive: true }); } catch (_) {} }
 function readJson(p) { try { return fs.existsSync(p) ? JSON.parse(fs.readFileSync(p, 'utf8')) : null; } catch (_) { return null; } }
 function writeJson(p, v) { try { fs.writeFileSync(p, JSON.stringify(v), 'utf8'); return true; } catch (_) { return false; } }
+// 缓存文件名白名单清洗：防止 bookId 含 ../ 等造成路径穿越（防御纵深）
+function safeCacheName(id) { return String(id || '').replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 128) || '_unknown'; }
 
 function createWindow() {
   win = new BrowserWindow({
@@ -132,8 +134,8 @@ ipcMain.handle('stats-cache-read', () => readJson(path.join(STATS_CACHE_DIR, 'st
 ipcMain.handle('stats-cache-write', (_, vm) => { ensureDir(STATS_CACHE_DIR); return writeJson(path.join(STATS_CACHE_DIR, 'stats.json'), vm); });
 
 // 书籍详情缓存（按 bookId 分文件）
-ipcMain.handle('book-cache-read', (_, bookId) => readJson(path.join(BOOK_CACHE_DIR, String(bookId) + '.json')));
-ipcMain.handle('book-cache-write', (_, bookId, vm) => { ensureDir(BOOK_CACHE_DIR); return writeJson(path.join(BOOK_CACHE_DIR, String(bookId) + '.json'), vm); });
+ipcMain.handle('book-cache-read', (_, bookId) => readJson(path.join(BOOK_CACHE_DIR, safeCacheName(bookId) + '.json')));
+ipcMain.handle('book-cache-write', (_, bookId, vm) => { ensureDir(BOOK_CACHE_DIR); return writeJson(path.join(BOOK_CACHE_DIR, safeCacheName(bookId) + '.json'), vm); });
 
 // Agent 取数：主进程读 auth → resolveAuth → key 模式才能走网关（cookie 模式无法驱动 Bearer 网关，降级）
 function resolveCurrentAuth() { return WereadAuth.resolveAuth(readJson(AUTH_PATH) || {}); }
