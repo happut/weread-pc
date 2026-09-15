@@ -1,6 +1,6 @@
 {
   "name": "weread-pc",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "WeRead PC client based on Electron + webview",
   "license": "MIT",
   "main": "main.js",
