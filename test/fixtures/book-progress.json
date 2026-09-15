@@ -1,0 +1,10 @@
+{
+  "errcode": 0,
+  "book": {
+    "progress": 42,
+    "recordReadingTime": 3600,
+    "updateTime": 1735747200,
+    "finishTime": 0,
+    "isStartReading": true
+  }
+}

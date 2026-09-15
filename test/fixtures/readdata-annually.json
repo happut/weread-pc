@@ -1,0 +1,34 @@
+{
+  "errcode": 0,
+  "baseTime": 1735660800,
+  "totalReadTime": 360000,
+  "dayAverageReadTime": 1200,
+  "compare": 0.2,
+  "readDays": 116,
+  "dailyReadTimes": {
+    "1735660800": 600,
+    "1735747200": 1200,
+    "1735833600": 1800,
+    "1735920000": 300
+  },
+  "readLongest": [
+    {
+      "book": { "bookId": "100001", "title": "示例书一", "author": "作者甲", "cover": "https://cdn.weread.qq.com/cover1.jpg" },
+      "readTime": 36000,
+      "tags": ["单日阅读最久"]
+    },
+    {
+      "book": { "bookId": "100002", "title": "示例书二", "author": "作者乙", "cover": "https://cdn.weread.qq.com/cover2.jpg" },
+      "readTime": 24000
+    }
+  ],
+  "preferCategory": [
+    { "categoryId": 100, "categoryTitle": "文学", "readingTime": 120000, "readingCount": 12, "val": 100 },
+    { "categoryId": 200, "categoryTitle": "历史", "readingTime": 60000, "readingCount": 5, "val": 50 }
+  ],
+  "preferCategoryWord": "偏好阅读文学",
+  "medals": [
+    { "title": "持之以恒" },
+    { "title": "书虫" }
+  ]
+}

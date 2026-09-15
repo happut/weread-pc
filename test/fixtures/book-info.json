@@ -1,0 +1,17 @@
+{
+  "errcode": 0,
+  "bookId": "100001",
+  "title": "示例书一",
+  "author": "作者甲",
+  "translator": "",
+  "cover": "https://cdn.weread.qq.com/cover1.jpg",
+  "intro": "这是一本示例书籍的简介，用于详情侧栏概览展示。",
+  "category": "文学",
+  "publisher": "示例出版社",
+  "publishTime": "2020-01-01",
+  "isbn": "9780000000000",
+  "wordCount": 250000,
+  "newRating": 85,
+  "newRatingCount": 1200,
+  "deepLink": "https://weread.qq.com/book-detail?bookId=100001"
+}

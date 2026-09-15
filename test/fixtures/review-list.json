@@ -1,0 +1,34 @@
+{
+  "errcode": 0,
+  "reviewsCnt": 2,
+  "reviewsHasMore": false,
+  "deepVRecommendValue": 862,
+  "reviews": [
+    {
+      "review": {
+        "review": {
+          "reviewId": "r1",
+          "content": "写得很好，推荐一读。",
+          "htmlContent": "<p>写得很好，推荐一读。</p>",
+          "star": 100,
+          "createTime": 1735747200,
+          "author": { "name": "读者甲", "avatar": "https://cdn.weread.qq.com/a1.jpg" },
+          "book": { "title": "示例书一" }
+        }
+      }
+    },
+    {
+      "review": {
+        "review": {
+          "reviewId": "r2",
+          "content": "内容详实，逻辑清晰。",
+          "htmlContent": "<p>内容详实，逻辑清晰。</p>",
+          "star": 80,
+          "createTime": 1735660800,
+          "author": { "name": "读者乙", "avatar": "https://cdn.weread.qq.com/a2.jpg" },
+          "book": { "title": "示例书一" }
+        }
+      }
+    }
+  ]
+}
