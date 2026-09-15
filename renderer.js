@@ -13,11 +13,22 @@ const nextBtn = document.getElementById('nextBtn');
 const statusEl = document.getElementById('status');
 const shelfEl = document.getElementById('shelf');
 const loadingEl = document.getElementById('loading');
+const libtabsEl = document.getElementById('libtabs');
+const tabShelf = document.getElementById('tabShelf');
+const tabStats = document.getElementById('tabStats');
+const settingsBtn = document.getElementById('settingsBtn');
+const statsEl = document.getElementById('stats');
+const detailEl = document.getElementById('detail');
+const settingsEl = document.getElementById('settings');
 
 let mode = 'shelf';         // 'shelf' | 'reader'
 let shelfBooted = false;    // 首次取数是否已发起
 let currentVM = null;       // 当前视图模型
 let pendingOpen = false;    // 正在打开某本书：等 reader 正文就绪再撤 loading
+let libTab = 'shelf';       // 'shelf' | 'stats'，仅 mode==='shelf' 时有意义
+
+// Task 1 spike 若发现免交互取 Key 端点，填此常量（同源、带登录态）；留空 = 不支持自动取 Key，走手动粘贴。
+const AUTO_KEY_ENDPOINT = '';
 
 let fontSize = 1.0;       // 缩放系数：1.0 = 100%，即网页版当前档位字号（最小档 18px）
 let autoTimer = null;
@@ -100,14 +111,30 @@ function setStatus(text, on) {
   statusEl.className = on ? 'on' : '';
 }
 
-// ---- 书架视图切换 ----
-function showShelf() {
-  mode = 'shelf';
-  shelfEl.classList.add('show');
+// ---- 书库层显隐（书架 / 统计 双 Tab 互斥；进阅读时整层撤下）----
+function setLibraryMode(on) {
+  document.body.classList.toggle('library-mode', !!on);
 }
-function hideShelf() {
-  mode = 'reader';
+function showShelf() {
+  mode = 'shelf'; libTab = 'shelf';
+  setLibraryMode(true);
+  shelfEl.classList.add('show');
+  statsEl.classList.remove('show');
+  tabShelf.classList.add('active'); tabStats.classList.remove('active');
+}
+function showStats() {
+  mode = 'shelf'; libTab = 'stats';
+  setLibraryMode(true);
   shelfEl.classList.remove('show');
+  statsEl.classList.add('show');
+  tabStats.classList.add('active'); tabShelf.classList.remove('active');
+  loadStats();
+}
+function hideShelf() {          // 进阅读：撤下整个书库层（含顶栏）
+  mode = 'reader';
+  setLibraryMode(false);
+  shelfEl.classList.remove('show');
+  statsEl.classList.remove('show');
 }
 
 // ---- 全屏 loading（不透明盖住 webview，官方网页界面永不露出）----
@@ -174,6 +201,42 @@ async function refreshShelf() {
   }
 }
 
+// 自动取 Key：spike 发现端点才生效；成功写回 auth.json 的 autoKey。失败静默（走手动兜底）。
+async function tryAutoKey() {
+  if (!AUTO_KEY_ENDPOINT || !webview) return false;
+  try {
+    const js = `fetch(${JSON.stringify(AUTO_KEY_ENDPOINT)}, { credentials: 'include' })`
+      + `.then(r => r.json()).then(j => (j && (j.key || j.apiKey || '')) || '').catch(() => '')`;
+    const key = await webview.executeJavaScript(js);
+    if (key && /^wrk-/.test(key)) {
+      const auth = (await window.wereadPC.readAuth()) || {};
+      auth.autoKey = key;
+      auth.autoKeyAt = Date.now();
+      auth.autoKeyInvalid = false;
+      if (!auth.source) auth.source = 'auto';
+      await window.wereadPC.writeAuth(auth);
+      return true;
+    }
+  } catch (_) { /* 静默：自动取 Key 属尽力而为 */ }
+  return false;
+}
+
+// 统计看板取数：缓存秒开 → （无 Key 先试自动取）→ 后台刷新 → 派生视图模型 → 渲染 → 写缓存
+async function loadStats() {
+  const handlers = { onSettings: () => openSettings(), onOpenBook: (id) => openDetailById(id) };
+  let cached = null;
+  try { cached = await window.wereadPC.readStatsCache(); } catch (_) { cached = null; }
+  if (cached) window.StatsView.render(statsEl, cached, handlers);
+  else window.StatsView.render(statsEl, window.StatsData.buildStatsViewModel({ ok: false }, currentVM, new Date().getFullYear()), handlers);
+  try { await tryAutoKey(); } catch (_) {}
+  let bundle = null;
+  try { bundle = await window.wereadPC.fetchStats(); } catch (_) { bundle = null; }
+  const year = new Date().getFullYear();
+  const vm = window.StatsData.buildStatsViewModel(bundle || { ok: false }, currentVM, year);
+  window.StatsView.render(statsEl, vm, handlers);
+  if (bundle && bundle.ok) { try { await window.wereadPC.writeStatsCache(vm); } catch (_) {} }
+}
+
 function startAuto() {
   const sec = Math.max(3, parseInt(intervalInput.value, 10) || 30);
   intervalInput.value = sec;
@@ -224,9 +287,13 @@ singlePageBtn.addEventListener('click', () => {
   if (window.wereadPC) window.wereadPC.setWindowWidth(1000);
 });
 homeBtn.addEventListener('click', () => {
+  closeDetail();   // Task 10 定义
   showShelf();
-  refreshShelf(); // 返回书架时后台刷新进度
+  refreshShelf();  // 返回书架时后台刷新进度
 });
+tabShelf.addEventListener('click', () => { if (mode === 'shelf') showShelf(); });
+tabStats.addEventListener('click', () => { if (mode === 'shelf') showStats(); });
+settingsBtn.addEventListener('click', () => openSettings());
 intervalInput.addEventListener('change', () => {
   if (autoTimer) { stopAuto(); startAuto(); } // 修改间隔后重启
 });
