@@ -26,6 +26,7 @@ let shelfBooted = false;    // 首次取数是否已发起
 let currentVM = null;       // 当前视图模型
 let pendingOpen = false;    // 正在打开某本书：等 reader 正文就绪再撤 loading
 let libTab = 'shelf';       // 'shelf' | 'stats'，仅 mode==='shelf' 时有意义
+let bubbleEl = null;      // 首次引导气泡节点
 
 // Task 1 spike 若发现免交互取 Key 端点，填此常量（同源、带登录态）；留空 = 不支持自动取 Key，走手动粘贴。
 const AUTO_KEY_ENDPOINT = '';
@@ -161,6 +162,8 @@ function revealReader() {
 }
 
 function openBook(vm) {
+  closeDetail();
+  closeBubble();
   const url = window.ShelfView.readerUrlFor(vm);
   // 盖不透明 loading 后再导航；等 reader 正文 canvas 就绪才撤，全程不露官方网页书架
   pendingOpen = true;
@@ -181,8 +184,10 @@ function paintShelf(vm, hintErr) {
   currentVM = vm;
   window.ShelfView.render(shelfEl, vm, {
     onOpen: openBook,
+    onDetail: openDetail,
     onRefresh: () => refreshShelf()
   });
+  showBubbleOnce();   // 首次提示单击/双击
 }
 
 // 取数并渲染：先缓存秒开，再后台刷新
@@ -236,6 +241,63 @@ async function loadStats() {
   window.StatsView.render(statsEl, vm, handlers);
   if (bundle && bundle.ok) { try { await window.wereadPC.writeStatsCache(vm); } catch (_) {} }
 }
+
+// ---- 详情侧栏 ----
+const DETAIL_TTL = 7 * 24 * 3600 * 1000;   // 7 天
+function detailHandlers(vm) {
+  return { onClose: closeDetail, onRead: () => openBook(vm) };
+}
+// vm = 书架 book VM（含 bookId/title/cover/deepLink/readerUrl）
+function openDetail(vm) {
+  if (!vm || !vm.bookId) return;
+  closeBubble();
+  detailEl.classList.add('show');
+  const h = detailHandlers(vm);
+  // 先用书架 VM 画占位（封面/书名立即可见），再后台补详情
+  window.DetailView.render(detailEl, window.BookDetailData.buildDetailViewModel({
+    ok: false, info: { bookId: vm.bookId, title: vm.title, author: vm.author, cover: vm.cover }
+  }), h);
+  loadDetail(vm.bookId, h);
+}
+// 从统计 TOP5 点开：先在书架 VM 里找，找不到用最小信息
+function openDetailById(bookId) {
+  let vm = null;
+  if (currentVM && currentVM.allBooks) {
+    vm = currentVM.allBooks.filter(b => String(b.bookId) === String(bookId))[0] || null;
+  }
+  openDetail(vm || { bookId: String(bookId) });
+}
+async function loadDetail(bookId, handlers) {
+  const h = handlers || { onClose: closeDetail };
+  let cached = null;
+  try { cached = await window.wereadPC.readBookCache(bookId); } catch (_) { cached = null; }
+  if (cached && cached.vm && cached.fetchedAt && (Date.now() - cached.fetchedAt) < DETAIL_TTL) {
+    window.DetailView.render(detailEl, cached.vm, h);
+    return;   // 命中未过期缓存，不再打网络
+  }
+  let bundle = null;
+  try { bundle = await window.wereadPC.fetchBook(bookId); } catch (_) { bundle = null; }
+  const vm = window.BookDetailData.buildDetailViewModel(bundle || { ok: false, info: { bookId: bookId } });
+  window.DetailView.render(detailEl, vm, h);
+  if (bundle && bundle.ok) {
+    try { await window.wereadPC.writeBookCache(bookId, { fetchedAt: Date.now(), vm: vm }); } catch (_) {}
+  }
+}
+function closeDetail() { detailEl.classList.remove('show'); }
+
+// ---- 首次气泡引导（localStorage 记忆，只弹一次）----
+function showBubbleOnce() {
+  try { if (localStorage.getItem('wrpc-detail-bubble')) return; } catch (_) {}
+  const b = document.createElement('div');
+  b.className = 'bubble';
+  b.textContent = '单击书卡看详情，双击直接阅读';
+  b.style.left = '50%'; b.style.bottom = '28px'; b.style.transform = 'translateX(-50%)';
+  document.body.appendChild(b);
+  bubbleEl = b;
+  setTimeout(closeBubble, 5000);
+  try { localStorage.setItem('wrpc-detail-bubble', '1'); } catch (_) {}
+}
+function closeBubble() { if (bubbleEl) { bubbleEl.remove(); bubbleEl = null; } }
 
 function startAuto() {
   const sec = Math.max(3, parseInt(intervalInput.value, 10) || 30);

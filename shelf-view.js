@@ -24,8 +24,10 @@
     return n;
   }
 
-  // 单张书卡；lazy=true 封面走 data-src 懒加载（虚拟网格用），否则直接赋 src（继续阅读横排用）
-  function bookCard(vm, onOpen, lazy) {
+  // 单张书卡；handlers = { onOpen, onDetail }；lazy=true 封面走 data-src 懒加载
+  // 单击→详情（延迟 220ms 避开双击）；双击→阅读
+  function bookCard(vm, handlers, lazy) {
+    const h = handlers || {};
     const card = el('div', 'book-card');
     const cover = el('div', 'cover');
     if (vm.cover) {
@@ -42,7 +44,15 @@
     fill.style.width = Math.max(0, Math.min(100, vm.progress || 0)) + '%';
     bar.appendChild(fill);
     card.appendChild(bar);
-    card.addEventListener('click', () => onOpen(vm));
+    let clickTimer = null;
+    card.addEventListener('click', () => {
+      if (clickTimer) return;
+      clickTimer = setTimeout(() => { clickTimer = null; if (h.onDetail) h.onDetail(vm); }, 220);
+    });
+    card.addEventListener('dblclick', () => {
+      if (clickTimer) { clearTimeout(clickTimer); clickTimer = null; }
+      if (h.onOpen) h.onOpen(vm);
+    });
     return card;
   }
 
@@ -51,6 +61,7 @@
     this.viewport = viewport;
     this.items = items;
     this.onOpen = opts.onOpen;
+    this.onDetail = opts.onDetail;
     this.gap = opts.gap || 14;
     this.minCellW = opts.minCellW || 120;
     this.textH = opts.textH || 40;   // 标题+进度条区域高度
@@ -102,7 +113,7 @@
         if (idx >= this.items.length) break;
         const cell = el('div', 'grid-cell');
         cell.style.width = this.cellW + 'px';
-        cell.appendChild(bookCard(this.items[idx], this.onOpen, true));
+        cell.appendChild(bookCard(this.items[idx], { onOpen: this.onOpen, onDetail: this.onDetail }, true));
         row.appendChild(cell);
       }
       this.rowsEl.appendChild(row);
@@ -135,14 +146,14 @@
     if (vm.continueReading.length) {
       body.appendChild(el('div', 'shelf-subhead', '继续阅读'));
       const row = el('div', 'continue-row');
-      vm.continueReading.forEach(b => row.appendChild(bookCard(b, handlers.onOpen)));
+      vm.continueReading.forEach(b => row.appendChild(bookCard(b, { onOpen: handlers.onOpen, onDetail: handlers.onDetail })));
       body.appendChild(row);
     }
     body.appendChild(el('div', 'shelf-subhead', '全部藏书 · ' + vm.allBooks.length + ' 本'));
     const viewport = el('div', 'grid-viewport');
     body.appendChild(viewport);
     container.appendChild(body);
-    container._grid = new VirtualGrid(viewport, vm.allBooks, { onOpen: handlers.onOpen });
+    container._grid = new VirtualGrid(viewport, vm.allBooks, { onOpen: handlers.onOpen, onDetail: handlers.onDetail });
   }
 
   function pill(cls, text) {
