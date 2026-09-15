@@ -41,7 +41,9 @@
       title: b.title || '',
       author: b.author || '',
       cover: b.cover || '',
+      category: b.category || '',                                            // ③偏好退化用（可能为空）
       progress: p && typeof p.progress === 'number' ? p.progress : 0,
+      readingTime: p && typeof p.readingTime === 'number' ? p.readingTime : 0, // ④TOP5退化用
       deepLink: deepLink,
       readerUrl: readerUrlFromDeepLink(deepLink)
     };

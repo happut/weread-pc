@@ -32,3 +32,10 @@ test('readerUrl: 从 deepLink 的 v 参数拼出 /web/reader/<v>', () => {
   const b1 = vm.allBooks.find(b => b.bookId === 'b1');
   assert.strictEqual(b1.readerUrl, 'https://weread.qq.com/web/reader/1');
 });
+
+test('toBookVM: 携带 readingTime（④退化）与 category（③退化）', () => {
+  const vm = buildViewModel(raw);
+  const b1 = vm.allBooks.find(b => b.bookId === 'b1');
+  assert.strictEqual(b1.readingTime, 3600); // bookProgress b1.readingTime
+  assert.strictEqual(b1.category, '');      // fixture 无 category → 空串不报错
+});
