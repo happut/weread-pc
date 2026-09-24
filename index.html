@@ -295,8 +295,10 @@
     .dt-empty { color: var(--text-dim); font-size: 13px; text-align: center; padding: 30px 0; }
 
     /* ===== 右下角悬浮翻页按钮（仅阅读视图）===== */
+    /* z-index 必须 > webview guest 图层的有效层叠级（实测介于 14~20 之间），否则按钮被 guest 盖住；
+       同时 < #settings(30)，保证设置模态仍能盖住它 */
     #floatTurn {
-      position: fixed; right: 28px; bottom: 28px; z-index: 14;
+      position: fixed; right: 28px; bottom: 28px; z-index: 25;
       display: none; gap: 14px;
     }
     #floatTurn.show { display: flex; }
