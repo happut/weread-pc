@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, powerSaveBlocker, screen } = require('electron');
+const { app, BrowserWindow, ipcMain, powerSaveBlocker, screen, session } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const WereadAuth = require('./weread-auth.js');
@@ -8,6 +8,10 @@ let win = null;
 let powerSaveId = null;
 let guest = null;        // webview 的 webContents
 let lastDisplayId = null;
+
+// 阅读页 webview 用 persist:weread 分区。默认 Electron UA 含 "Electron/xx" 和 app 名，
+// 被官方识别为非标准客户端后不计阅读时长。这里伪装成标准桌面 Chrome，使时长正常上报。
+const WEREAD_UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36';
 
 // 跨屏拖动会改变 devicePixelRatio，而正文是 canvas 位图，不随 DPR 变化重绘 -> 字形错位
 // 做法：换屏时派发 resize 事件 + 抖动 1px 触发真实重排，让阅读器重新排版
@@ -39,6 +43,9 @@ function writeJson(p, v) { try { fs.writeFileSync(p, JSON.stringify(v), 'utf8');
 function safeCacheName(id) { return String(id || '').replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 128) || '_unknown'; }
 
 function createWindow() {
+  // 必须在 webview 加载前设置该分区的 UA，否则首屏请求仍走默认 Electron UA
+  session.fromPartition('persist:weread').setUserAgent(WEREAD_UA);
+
   win = new BrowserWindow({
     // 默认单页展示：阅读器在宽 ≤1000px 时自动单页（消除双页中缝）；
     // 想双页时手动拉宽窗口即可，「单页」按钮可随时调回
