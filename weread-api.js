@@ -36,8 +36,37 @@ function toDailyMap(dailyReadTimes) {
   return out;
 }
 
+// annually 的 readTimes 键是月首时间戳 → 'YYYY-MM'
+function toMonthMap(monthReadTimes) {
+  const out = {};
+  const src = monthReadTimes || {};
+  for (const k of Object.keys(src)) {
+    const n = Number(k);
+    if (!isFinite(n)) continue;
+    const d = new Date(n > 1e12 ? n : n * 1000);
+    const key = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
+    out[key] = (out[key] || 0) + (Number(src[k]) || 0);
+  }
+  return out;
+}
+
+// overall 的 readTimes 键是年首时间戳 → 'YYYY'
+function toYearMap(yearReadTimes) {
+  const out = {};
+  const src = yearReadTimes || {};
+  for (const k of Object.keys(src)) {
+    const n = Number(k);
+    if (!isFinite(n)) continue;
+    const key = String(new Date(n > 1e12 ? n : n * 1000).getFullYear());
+    out[key] = (out[key] || 0) + (Number(src[k]) || 0);
+  }
+  return out;
+}
+
 // 单次 /readdata/detail → 该周期归一化片段
-function normalizeReaddataOne(json) {
+// 真实回包没有 dailyReadTimes；每日/每月/每年数据都在 readTimes，粒度随 mode 变化：
+// weekly/monthly=按天、annually=按月、overall=按年。归一化时打上粒度标签供看板选图。
+function normalizeReaddataOne(json, mode) {
   const j = json || {};
   const num = (x) => (typeof x === 'number' ? x : 0);
   const topBooks = (Array.isArray(j.readLongest) ? j.readLongest : []).map(it => {
@@ -48,12 +77,15 @@ function normalizeReaddataOne(json) {
     category: (c && c.categoryTitle) || '', seconds: num(c && c.readingTime),
     count: num(c && c.readingCount), val: num(c && c.val)
   })).filter(x => x.category);
+  const rt = j.readTimes || {};
+  const granularity = mode === 'annually' ? 'month' : (mode === 'overall' ? 'year' : 'day');
+  const readTimes = granularity === 'month' ? toMonthMap(rt) : (granularity === 'year' ? toYearMap(rt) : toDailyMap(rt));
   return {
     seconds: num(j.totalReadTime),
     dayAvgSeconds: num(j.dayAverageReadTime),
     compare: typeof j.compare === 'number' ? j.compare : null,
     readDays: num(j.readDays),
-    daily: toDailyMap(j.dailyReadTimes),
+    granularity, readTimes,
     topBooks, preference,
     medals: Array.isArray(j.medals) ? j.medals : []
   };
@@ -66,15 +98,24 @@ function assembleStatsBundle(parts) {
   const mkTotals = (x) => ({
     seconds: (x && x.seconds) || 0,
     dayAvgSeconds: (x && x.dayAvgSeconds) || 0,
-    compare: x && typeof x.compare === 'number' ? x.compare : null
+    compare: x && typeof x.compare === 'number' ? x.compare : null,
+    readDays: (x && x.readDays) || 0
   });
   const pickArr = (f) => { for (const m of modes) { const v = p[m] && p[m][f]; if (Array.isArray(v) && v.length) return v; } return []; };
-  const pickObj = (f) => { for (const m of modes) { const v = p[m] && p[m][f]; if (v && Object.keys(v).length) return v; } return {}; };
   const pickNum = (f) => { for (const m of modes) { const v = p[m] && p[m][f]; if (typeof v === 'number' && v > 0) return v; } return 0; };
+  // 按天数据只存在于 weekly/monthly；优先 monthly（覆盖整月，含本周）
+  const pickByGranularity = (g, pref) => {
+    for (const m of pref) { const v = p[m]; if (v && v.granularity === g && v.readTimes && Object.keys(v.readTimes).length) return v.readTimes; }
+    for (const m of modes) { const v = p[m]; if (v && v.granularity === g && v.readTimes && Object.keys(v.readTimes).length) return v.readTimes; }
+    return {};
+  };
   return {
     ok: true, source: 'agent', fetchedAt: Date.now(),
     totals: { week: mkTotals(p.week), month: mkTotals(p.month), year: mkTotals(p.year), overall: mkTotals(p.overall) },
-    daily: pickObj('daily'), readDays: pickNum('readDays'),
+    daily: pickByGranularity('day', ['month', 'week']),
+    weekDaily: pickByGranularity('day', ['week']),
+    monthBuckets: pickByGranularity('month', ['year']),
+    readDays: pickNum('readDays'),
     topBooks: pickArr('topBooks'), preference: pickArr('preference'), medals: pickArr('medals')
   };
 }
@@ -152,7 +193,7 @@ async function fetchStatsBundle(key) {
   const modes = { week: 'weekly', month: 'monthly', year: 'annually', overall: 'overall' };
   const parts = {};
   for (const k of Object.keys(modes)) {
-    try { parts[k] = normalizeReaddataOne(await gatewayFetch(key, '/readdata/detail', { mode: modes[k] })); }
+    try { parts[k] = normalizeReaddataOne(await gatewayFetch(key, '/readdata/detail', { mode: modes[k] }), modes[k]); }
     catch (_) { parts[k] = null; }   // 单周期失败不拖垮整体
   }
   if (!parts.week && !parts.month && !parts.year && !parts.overall) throw new Error('readdata 全部失败');
@@ -171,7 +212,7 @@ async function fetchBookBundle(key, bookId) {
 
 module.exports = {
   GATEWAY, SKILL_VERSION,
-  buildGatewayBody, pickError, toDailyMap,
+  buildGatewayBody, pickError, toDailyMap, toMonthMap, toYearMap,
   normalizeReaddataOne, assembleStatsBundle,
   normalizeBookInfo, normalizeProgress, normalizeReviews, assembleBookBundle,
   gatewayFetch, fetchStatsBundle, fetchBookBundle

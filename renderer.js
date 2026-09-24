@@ -234,19 +234,37 @@ async function tryAutoKey() {
 }
 
 // 统计看板取数：缓存秒开 → （无 Key 先试自动取）→ 后台刷新 → 派生视图模型 → 渲染 → 写缓存
+let statsCurDim = 'month';
+let statsVm = null;
+function statsHandlers() {
+  return {
+    onSettings: () => openSettings(),
+    onOpenBook: (id) => openDetailById(id),
+    // 切维度不重新请求：缓存 vm 带全三维度数据，本地派生
+    onDim: (d) => {
+      statsCurDim = d;
+      if (!statsVm) return;
+      statsVm = window.StatsData.withDim(statsVm, d);
+      window.StatsView.render(statsEl, statsVm, statsHandlers());
+    }
+  };
+}
 async function loadStats() {
-  const handlers = { onSettings: () => openSettings(), onOpenBook: (id) => openDetailById(id) };
+  const handlers = statsHandlers();
   let cached = null;
   try { cached = await window.wereadPC.readStatsCache(); } catch (_) { cached = null; }
-  if (cached) window.StatsView.render(statsEl, cached, handlers);
-  else window.StatsView.render(statsEl, window.StatsData.buildStatsViewModel({ ok: false }, currentVM, new Date().getFullYear()), handlers);
+  if (cached) {
+    statsVm = window.StatsData.withDim(cached, statsCurDim);
+    window.StatsView.render(statsEl, statsVm, handlers);
+  }
+  else window.StatsView.render(statsEl, window.StatsData.buildStatsViewModel({ ok: false }, currentVM, new Date().getFullYear(), statsCurDim), handlers);
   try { await tryAutoKey(); } catch (_) {}
   let bundle = null;
   try { bundle = await window.wereadPC.fetchStats(); } catch (_) { bundle = null; }
   const year = new Date().getFullYear();
-  const vm = window.StatsData.buildStatsViewModel(bundle || { ok: false }, currentVM, year);
-  window.StatsView.render(statsEl, vm, handlers);
-  if (bundle && bundle.ok) { try { await window.wereadPC.writeStatsCache(vm); } catch (_) {} }
+  statsVm = window.StatsData.buildStatsViewModel(bundle || { ok: false }, currentVM, year, statsCurDim);
+  window.StatsView.render(statsEl, statsVm, handlers);
+  if (bundle && bundle.ok) { try { await window.wereadPC.writeStatsCache(statsVm); } catch (_) {} }
 }
 
 // ---- 详情侧栏 ----

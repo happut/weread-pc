@@ -241,6 +241,28 @@
     .heat i { width: 12px; height: 12px; border-radius: 2px; background: #ebedf0; }
     .heat i.lv1 { background: #c6e48b; } .heat i.lv2 { background: #7bc96f; }
     .heat i.lv3 { background: #239a3b; } .heat i.lv4 { background: #196127; }
+    .stat-sub { font-size: 11px; color: var(--text-dim); margin: 10px 0 6px; }
+    .dim-tabs { display: flex; gap: 6px; margin-bottom: 14px; }
+    .dim-tab { padding: 5px 18px; border-radius: 14px; border: 1px solid var(--bar-border); background: #fff; color: var(--text-dim); font-size: 12px; cursor: pointer; }
+    .dim-tab.on { background: var(--accent); border-color: var(--accent); color: #fff; }
+    .heat-month { display: grid; grid-template-columns: repeat(12, 1fr); gap: 6px; }
+    .heat-month i { height: 26px; border-radius: 4px; background: #ebedf0; }
+    .heat-month i.lv1 { background: #c6e48b; } .heat-month i.lv2 { background: #7bc96f; }
+    .heat-month i.lv3 { background: #239a3b; } .heat-month i.lv4 { background: #196127; }
+    .heat-week { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; }
+    .heat-week i { height: 26px; border-radius: 4px; background: #ebedf0; }
+    .heat-week i.lv1 { background: #c6e48b; } .heat-week i.lv2 { background: #7bc96f; }
+    .heat-week i.lv3 { background: #239a3b; } .heat-week i.lv4 { background: #196127; }
+    .weekbars { display: flex; gap: 10px; align-items: flex-end; }
+    .weekbars.dense { gap: 4px; }
+    .weekbars.dense .wb-bar { max-width: 14px; height: 72px; }
+    .weekbars.dense .wb small { font-size: 10px; }
+    .wb { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 4px; }
+    .wb-bar { width: 100%; max-width: 34px; height: 84px; background: #eef0f3; border-radius: 4px; display: flex; align-items: flex-end; overflow: hidden; }
+    .wb-bar > i { display: block; width: 100%; background: var(--accent); }
+    .wb.today .wb-bar > i { background: #1f9254; }
+    .wb small { font-size: 11px; color: var(--text-dim); }
+    .wb .wb-h { font-size: 11px; color: var(--text-dim); font-variant-numeric: tabular-nums; }
     .dur-row { display: flex; gap: 14px; flex-wrap: wrap; }
     .dur { flex: 1; min-width: 120px; }
     .dur b { font-size: 26px; font-variant-numeric: tabular-nums; }
@@ -258,6 +280,9 @@
     .top-row .h { font-size: 12px; color: var(--text-dim); font-variant-numeric: tabular-nums; }
     .streak { display: flex; gap: 22px; align-items: center; }
     .streak .n { font-size: 30px; font-weight: 600; font-variant-numeric: tabular-nums; }
+    .medals { display: flex; flex-wrap: wrap; gap: 6px; }
+    .medal { font-size: 11px; color: var(--text-dim); background: #f2f4f7; border-radius: 10px; padding: 3px 10px; white-space: nowrap; }
+    .medal.more { background: transparent; padding-left: 0; }
     .stat-empty { color: var(--text-dim); font-size: 13px; text-align: center; padding: 40px 0; }
     .stat-empty button { margin-top: 12px; }
 

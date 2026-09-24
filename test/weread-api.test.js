@@ -32,21 +32,36 @@ test('toDailyMap: 毫秒时间戳也识别', () => {
   assert.strictEqual(Object.values(m)[0], 300);
 });
 
-test('normalizeReaddataOne: 提取 seconds/topBooks/preference/daily', () => {
-  const n = api.normalizeReaddataOne(annually);
+test('normalizeReaddataOne: annually → 粒度 month，readTimes 键为 YYYY-MM', () => {
+  const n = api.normalizeReaddataOne(annually, 'annually');
   assert.strictEqual(typeof n.seconds, 'number');
   assert.ok(Array.isArray(n.topBooks));
   assert.ok(Array.isArray(n.preference));
-  assert.strictEqual(typeof n.daily, 'object');
+  assert.strictEqual(n.granularity, 'month');
+  assert.ok(Object.keys(n.readTimes).length > 0);
+  assert.ok(/^2025-\d{2}$/.test(Object.keys(n.readTimes)[0]));
 });
 
-test('assembleStatsBundle: 合并 4 周期，daily/topBooks 取先有值者', () => {
-  const year = api.normalizeReaddataOne(annually);
-  const ov = api.normalizeReaddataOne(overall);
-  const b = api.assembleStatsBundle({ year, overall: ov, month: null, week: null });
+test('normalizeReaddataOne: weekly → 粒度 day，readTimes 键为 YYYY-MM-DD', () => {
+  const n = api.normalizeReaddataOne({ readTimes: { 1767196800: 600 } }, 'weekly');
+  assert.strictEqual(n.granularity, 'day');
+  assert.ok(Object.keys(n.readTimes)[0].match(/^\d{4}-\d{2}-\d{2}$/));
+});
+
+test('assembleStatsBundle: monthBuckets 取 annually，daily 取 monthly>weekly，weekDaily 取 weekly', () => {
+  const year = api.normalizeReaddataOne(annually, 'annually');
+  const ov = api.normalizeReaddataOne(overall, 'overall');
+  const month = api.normalizeReaddataOne({ readTimes: { 1767196800: 600 } }, 'monthly');
+  const week = api.normalizeReaddataOne({ readTimes: { 1767196800: 600 }, readDays: 3 }, 'weekly');
+  const b = api.assembleStatsBundle({ year, overall: ov, month, week });
   assert.strictEqual(b.ok, true);
   assert.strictEqual(b.source, 'agent');
   assert.ok(b.totals.year.seconds >= 0);
+  assert.ok(Object.keys(b.monthBuckets).length > 0);   // 按月
+  assert.ok(Object.keys(b.daily).length > 0);          // 按天（来自 monthly）
+  assert.ok(Object.keys(b.weekDaily).length > 0);      // 按天（来自 weekly）
+  assert.strictEqual(b.totals.week.readDays, 3);       // 每周期 readDays 进 totals
+  assert.strictEqual(b.totals.year.readDays, 116);
 });
 
 test('normalizeBookInfo: newRating→rating，缺字段降级为空串/0', () => {
