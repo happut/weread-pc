@@ -45,6 +45,8 @@
       gap: 5px;
       height: 32px;
       padding: 0 12px;
+      white-space: nowrap;   /* 防止状态栏长文案把按钮挤成两行“乱码” */
+      flex-shrink: 0;
       border: 1px solid var(--bar-border);
       border-radius: var(--radius);
       background: #fff;
@@ -391,6 +393,7 @@
 
     <div class="group" data-page-node-id="A9RBFyyNJqrDmMsuRbYRuK">
       <span id="status" data-page-node-id="fNZCPg4bkIYVccz7xwMOfc"></span>
+      <button id="modeBtn" title="切换阅读页的 上下滚动 / 翻页 模式（点击阅读页内的模式控件）">模式</button>
       <button id="singlePageBtn" title="把窗口调到单页宽度（约 1000px），自动消除双页中缝">单页</button>
       <button id="rerenderBtn" title="跨屏拖动后正文错位时，点此强制重新排版">重绘</button>
       <button id="homeBtn" title="回到书架" data-page-node-id="blnZgrH209lrlSFGXFEvpg">书架</button>

@@ -105,6 +105,29 @@ ipcMain.handle('force-rerender', () => {
   return true;
 });
 
+// 向 webview guest 注入真实鼠标点击（isTrusted），用于点那些无视合成 .click() 的阅读页控件。
+// x/y 为 guest 视口内 CSS 像素坐标（元素中心），与 getBoundingClientRect 一致。
+ipcMain.handle('guest-click', (_, x, y) => {
+  if (!guest || guest.isDestroyed()) return false;
+  const px = Math.round(Number(x)), py = Math.round(Number(y));
+  if (!isFinite(px) || !isFinite(py)) return false;
+  try {
+    guest.sendInputEvent({ type: 'mouseMove', x: px, y: py });
+    guest.sendInputEvent({ type: 'mouseDown', x: px, y: py, button: 'left', clickCount: 1 });
+    guest.sendInputEvent({ type: 'mouseUp', x: px, y: py, button: 'left', clickCount: 1 });
+    return true;
+  } catch (_) { return false; }
+});
+
+// 向 webview guest 注入真实鼠标移动（isTrusted），用于唤出会自动隐藏的阅读页工具栏。
+ipcMain.handle('guest-move', (_, x, y) => {
+  if (!guest || guest.isDestroyed()) return false;
+  const px = Math.round(Number(x)), py = Math.round(Number(y));
+  if (!isFinite(px) || !isFinite(py)) return false;
+  try { guest.sendInputEvent({ type: 'mouseMove', x: px, y: py }); return true; }
+  catch (_) { return false; }
+});
+
 // 把窗口宽度调到单页模式阈值（≤1000px 时阅读器自动单页，消除双页中缝）
 ipcMain.handle('set-window-width', (_, width) => {
   if (!win) return false;
@@ -141,6 +164,12 @@ ipcMain.handle('auth-write', (_, auth) => writeJson(AUTH_PATH, auth || {}));
 // 统计缓存（看板视图模型）
 ipcMain.handle('stats-cache-read', () => readJson(path.join(STATS_CACHE_DIR, 'stats.json')));
 ipcMain.handle('stats-cache-write', (_, vm) => { ensureDir(STATS_CACHE_DIR); return writeJson(path.join(STATS_CACHE_DIR, 'stats.json'), vm); });
+
+// 临时探针落盘（定位阅读页模式控件选择器），用完即删
+ipcMain.handle('probe-write', (_, text) => {
+  try { fs.writeFileSync(path.join(app.getPath('userData'), 'modeprobe.json'), String(text), 'utf8'); return true; }
+  catch (_) { return false; }
+});
 
 // 书籍详情缓存（按 bookId 分文件）
 ipcMain.handle('book-cache-read', (_, bookId) => readJson(path.join(BOOK_CACHE_DIR, safeCacheName(bookId) + '.json')));

@@ -8,6 +8,7 @@ const autoToggle = document.getElementById('autoToggle');
 const homeBtn = document.getElementById('homeBtn');
 const rerenderBtn = document.getElementById('rerenderBtn');
 const singlePageBtn = document.getElementById('singlePageBtn');
+const modeBtn = document.getElementById('modeBtn');
 const prevBtn = document.getElementById('prevBtn');
 const nextBtn = document.getElementById('nextBtn');
 const statusEl = document.getElementById('status');
@@ -81,6 +82,118 @@ const TURN_PREV_JS = `
   return 'ok';
 })();
 `;
+
+// ---- 阅读模式（上下滚动 / 翻页）----
+// 该模式由微信读书服务端按账号保存，本地存储里没有可改的键；
+// 唯一稳妥路径是"点阅读页内那个模式切换控件"（等价用户点击，走官方逻辑）。
+// 控件选择器未知且易变，故按"可见 + 短文本命中模式字样"动态定位，不写死 class。
+const MODE_LABEL_RE = '上下滚动|翻页阅读|左右翻页|仿真翻页';
+// 真实控件：阅读页工具栏里的 <div class="wr_tooltip_container">，文案即当前/目标模式。
+// 合成 .click() 打不动它（监听的是 pointer/mouse 事件序列，或绑在子节点上），
+// 所以定位后派发完整的 pointerdown→mousedown→pointerup→mouseup→click，并兜底点子节点。
+const MODE_FIND_JS = `
+(function () {
+  var re = /${MODE_LABEL_RE}/;
+  var boxes = [].slice.call(document.querySelectorAll('.wr_tooltip_container'));
+  for (var i = 0; i < boxes.length; i++) {
+    var t = (boxes[i].textContent || '').replace(/\\s/g, '');
+    var r = boxes[i].getBoundingClientRect();
+    if (re.test(t) && r.width > 0 && r.height > 0) return boxes[i].textContent.trim();
+  }
+  return null;
+})();
+`;
+const MODE_CLICK_JS = `
+(function () {
+  var re = /${MODE_LABEL_RE}/;
+  var boxes = [].slice.call(document.querySelectorAll('.wr_tooltip_container'));
+  for (var i = 0; i < boxes.length; i++) {
+    var t = (boxes[i].textContent || '').replace(/\\s/g, '');
+    var r = boxes[i].getBoundingClientRect();
+    if (re.test(t) && r.width > 0 && r.height > 0) {
+      return { label: boxes[i].textContent.trim(), x: r.left + r.width / 2, y: r.top + r.height / 2 };
+    }
+  }
+  return null;
+})();
+`;
+
+// 读阅读页当前模式控件文案，镜像到外壳按钮；找不到则回落到"模式"
+async function refreshModeLabel() {
+  let label = null;
+  try { label = await webview.executeJavaScript(MODE_FIND_JS); } catch (_) { label = null; }
+  modeBtn.textContent = label || '模式';
+  modeBtn.title = label
+    ? '当前阅读页模式控件：' + label + '（点击切换）'
+    : '切换阅读页的 上下滚动 / 翻页 模式（需在阅读页内）';
+}
+
+// 临时探针：dump 阅读页模式相关 DOM 候选到 .userdata/modeprobe.json，用于定位真实选择器
+// 注意：模式控件常在阅读器自带设置弹层里，弹层没开时节点可能 display:none，
+// 所以这里不要求可见，连隐藏节点一并抓，并标注可见性与 display，一次抓全。
+const MODE_PROBE_JS = `
+(function () {
+  var out = { url: location.href, bodyClass: document.body.className, iframes: [], candidates: [] };
+  var ifr = [].slice.call(document.querySelectorAll('iframe'));
+  for (var f = 0; f < ifr.length; f++) {
+    out.iframes.push({ src: String(ifr[f].src || '').slice(0, 120), id: ifr[f].id, cls: String(ifr[f].className).slice(0, 60) });
+  }
+  var re = /滚动|翻页|模式|仿真|上下|自动|设置/;
+  var els = [].slice.call(document.querySelectorAll('*'));
+  for (var i = 0; i < els.length; i++) {
+    var el = els[i];
+    var t = (el.textContent || '').replace(/\\s/g, '');
+    if (!t || t.length > 14 || !re.test(t)) continue;
+    var r = el.getBoundingClientRect();
+    var disp = '';
+    try { disp = getComputedStyle(el).display; } catch (_) {}
+    out.candidates.push({
+      tag: el.tagName, cls: String(el.className).slice(0, 80),
+      text: (el.textContent || '').trim().slice(0, 24),
+      kids: el.children.length, w: Math.round(r.width), h: Math.round(r.height),
+      vis: (r.width > 0 && r.height > 0), disp: disp
+    });
+    if (out.candidates.length >= 150) break;
+  }
+  var rc = document.querySelector('.readerContainer, .wr_reader, .renderTarget, [class*=reader]');
+  out.readerCls = rc ? String(rc.className).slice(0, 120) : null;
+  out.total = els.length;
+  // 针对模式控件本体：看中心点最上层是谁、pointer-events 是否被关、子节点结构
+  var re2 = /${MODE_LABEL_RE}/;
+  var box = null;
+  var all = [].slice.call(document.querySelectorAll('.wr_tooltip_container'));
+  for (var b = 0; b < all.length; b++) {
+    var bt = (all[b].textContent || '').replace(/\\s/g, '');
+    var br = all[b].getBoundingClientRect();
+    if (re2.test(bt) && br.width > 0 && br.height > 0) { box = all[b]; break; }
+  }
+  if (box) {
+    var r2 = box.getBoundingClientRect();
+    var cx2 = r2.left + r2.width / 2, cy2 = r2.top + r2.height / 2;
+    var top = null;
+    try { top = document.elementFromPoint(cx2, cy2); } catch (_) {}
+    var cs = getComputedStyle(box);
+    out.modeCtl = {
+      cls: String(box.className).slice(0, 80),
+      pe: cs.pointerEvents, pos: cs.position, z: cs.zIndex,
+      rect: [Math.round(r2.left), Math.round(r2.top), Math.round(r2.width), Math.round(r2.height)],
+      topAtCenter: top ? { tag: top.tagName, cls: String(top.className).slice(0, 80) } : null,
+      children: [].slice.call(box.children).map(function (k) {
+        var ks = getComputedStyle(k);
+        return { tag: k.tagName, cls: String(k.className).slice(0, 60), pe: ks.pointerEvents };
+      })
+    };
+  }
+  return JSON.stringify(out);
+})();
+`;
+async function dumpModeProbe() {
+  if (!window.wereadPC || !window.wereadPC.writeProbe) return;
+  try {
+    const dump = await webview.executeJavaScript(MODE_PROBE_JS);
+    await window.wereadPC.writeProbe(dump);
+  } catch (_) {}
+}
 
 function clampZoom(z) {
   return Math.round(Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, z)) * 100) / 100;
@@ -166,6 +279,8 @@ function revealReader() {
   hideShelf();
   hideLoading();
   setFloatTurn(true);   // 阅读视图才露出右下角悬浮翻页钮
+  setTimeout(refreshModeLabel, 800);   // 正文就绪后回读阅读页模式控件
+  setTimeout(dumpModeProbe, 1200);     // 临时探针：dump 模式控件 DOM
 }
 
 function openBook(vm) {
@@ -431,6 +546,35 @@ rerenderBtn.addEventListener('click', () => {
 singlePageBtn.addEventListener('click', () => {
   // 阅读器在窗口 <=1000px 时自动切单页（实测），中缝消失、正文字号等效变大
   if (window.wereadPC) window.wereadPC.setWindowWidth(1000);
+});
+const VIEWPORT_JS = `(function(){ return { w: window.innerWidth, h: window.innerHeight }; })();`;
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+// 阅读页工具栏 idle 会自动隐藏（图标 rect 归 0），定位前先注入鼠标移动把它唤出来
+async function locateModeControl() {
+  for (let attempt = 0; attempt < 2; attempt++) {
+    let vp = null;
+    try { vp = await webview.executeJavaScript(VIEWPORT_JS); } catch (_) { vp = null; }
+    if (vp && window.wereadPC && window.wereadPC.moveGuest) {
+      try { await window.wereadPC.moveGuest(vp.w / 2, vp.h / 2); } catch (_) {}
+    }
+    await sleep(attempt === 0 ? 500 : 700);
+    let hit = null;
+    try { hit = await webview.executeJavaScript(MODE_CLICK_JS); } catch (_) { hit = null; }
+    if (hit) return hit;
+  }
+  return null;
+}
+modeBtn.addEventListener('click', async () => {
+  await dumpModeProbe();               // 临时探针：先 dump 当前阅读页 DOM（弹层开着也一并抓）
+  const hit = await locateModeControl();
+  if (!hit) { setStatus('未找到模式控件'); return; }
+  // 合成 .click() 无效，改用主进程向 guest 注入真实鼠标事件（isTrusted）
+  let ok = false;
+  if (window.wereadPC && window.wereadPC.clickGuest) {
+    try { ok = await window.wereadPC.clickGuest(hit.x, hit.y); } catch (_) { ok = false; }
+  }
+  setStatus(ok ? '已切换模式' : '点击失败');
+  setTimeout(refreshModeLabel, 700);   // 等阅读页重排后回读新状态
 });
 homeBtn.addEventListener('click', () => {
   closeDetail();   // Task 10 定义
