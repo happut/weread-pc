@@ -1,0 +1,119 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <defs>
+    <clipPath id="plate">
+      <rect x="0" y="0" width="1024" height="1024" rx="224" ry="224"/>
+    </clipPath>
+  </defs>
+
+  <g clip-path="url(#plate)">
+    <rect width="1024" height="1024" fill="#FDF6EC"/>
+    <!-- soft warm wash -->
+    <circle cx="512" cy="480" r="420" fill="#F8EAD7" opacity="0.7"/>
+
+    <!-- book shadow -->
+    <ellipse cx="512" cy="790" rx="310" ry="34" fill="#E8D5BC" opacity="0.9"/>
+
+    <!-- open book covers -->
+    <!-- left cover -->
+    <path d="M140 520
+             C140 505 155 495 180 492
+             L470 470
+             L470 760
+             L180 745
+             C155 742 140 730 140 715
+             Z"
+          fill="#7A9E7E"/>
+    <!-- right cover -->
+    <path d="M884 520
+             C884 505 869 495 844 492
+             L554 470
+             L554 760
+             L844 745
+             C869 742 884 730 884 715
+             Z"
+          fill="#6F9172"/>
+    <!-- left page -->
+    <path d="M175 515
+             L470 492
+             L470 735
+             L175 722
+             Z"
+          fill="#F7F1E3"/>
+    <!-- right page -->
+    <path d="M849 515
+             L554 492
+             L554 735
+             L849 722
+             Z"
+          fill="#EFE7D4"/>
+    <!-- page hint lines -->
+    <g stroke="#D2C4A8" stroke-width="8" stroke-linecap="round" opacity="0.8">
+      <line x1="220" y1="580" x2="430" y2="570"/>
+      <line x1="220" y1="630" x2="410" y2="621"/>
+      <line x1="594" y1="570" x2="804" y2="580"/>
+      <line x1="594" y1="621" x2="784" y2="630"/>
+    </g>
+
+    <!-- cat body nestled in the book (peeking) -->
+    <!-- body -->
+    <ellipse cx="512" cy="520" rx="175" ry="130" fill="#F4A261"/>
+    <!-- head -->
+    <circle cx="512" cy="400" r="148" fill="#F4A261"/>
+
+    <!-- ears -->
+    <path d="M395 310 L370 195 L475 265 Z" fill="#F4A261"/>
+    <path d="M629 310 L654 195 L549 265 Z" fill="#F4A261"/>
+    <path d="M405 295 L390 225 L455 268 Z" fill="#E8896B"/>
+    <path d="M619 295 L634 225 L569 268 Z" fill="#E8896B"/>
+
+    <!-- forehead stripes -->
+    <g stroke="#E07A4F" stroke-width="12" stroke-linecap="round">
+      <line x1="512" y1="290" x2="512" y2="330"/>
+      <line x1="470" y1="300" x2="462" y2="335"/>
+      <line x1="554" y1="300" x2="562" y2="335"/>
+    </g>
+
+    <!-- closed eyes (content) -->
+    <path d="M430 400 Q455 385 480 400" fill="none" stroke="#3D3D3D" stroke-width="12" stroke-linecap="round"/>
+    <path d="M544 400 Q569 385 594 400" fill="none" stroke="#3D3D3D" stroke-width="12" stroke-linecap="round"/>
+
+    <!-- muzzle -->
+    <ellipse cx="512" cy="455" rx="48" ry="34" fill="#F8C9A0"/>
+    <!-- nose -->
+    <path d="M512 432 L528 448 L496 448 Z" fill="#C45C48"/>
+    <!-- mouth -->
+    <path d="M512 448 Q512 465 495 472" fill="none" stroke="#3D3D3D" stroke-width="7" stroke-linecap="round"/>
+    <path d="M512 448 Q512 465 529 472" fill="none" stroke="#3D3D3D" stroke-width="7" stroke-linecap="round"/>
+
+    <!-- whiskers -->
+    <g stroke="#3D3D3D" stroke-width="5" stroke-linecap="round" opacity="0.75">
+      <line x1="430" y1="450" x2="340" y2="435"/>
+      <line x1="430" y1="468" x2="345" y2="475"/>
+      <line x1="594" y1="450" x2="684" y2="435"/>
+      <line x1="594" y1="468" x2="679" y2="475"/>
+    </g>
+
+    <!-- front paws over the page edge -->
+    <ellipse cx="420" cy="575" rx="52" ry="36" fill="#F4A261"/>
+    <ellipse cx="604" cy="575" rx="52" ry="36" fill="#F4A261"/>
+    <!-- toe beans hint -->
+    <g fill="#E8896B" opacity="0.85">
+      <ellipse cx="405" cy="570" rx="10" ry="8"/>
+      <ellipse cx="425" cy="562" rx="10" ry="8"/>
+      <ellipse cx="445" cy="570" rx="10" ry="8"/>
+      <ellipse cx="589" cy="570" rx="10" ry="8"/>
+      <ellipse cx="609" cy="562" rx="10" ry="8"/>
+      <ellipse cx="629" cy="570" rx="10" ry="8"/>
+    </g>
+
+    <!-- Zzz -->
+    <g fill="#3D3D3D" opacity="0.7">
+      <path d="M680 250 L730 250 L680 300 L730 300" fill="none" stroke="#3D3D3D" stroke-width="12" stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="M745 185 L785 185 L745 225 L785 225" fill="none" stroke="#3D3D3D" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="M800 135 L830 135 L800 165 L830 165" fill="none" stroke="#3D3D3D" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>
+    </g>
+  </g>
+
+  <rect x="4" y="4" width="1016" height="1016" rx="222" ry="222"
+        fill="none" stroke="#E8D5BC" stroke-width="8"/>
+</svg>
