@@ -10,15 +10,18 @@ const reviewList = require('./fixtures/review-list.json');
 test('buildGatewayBody: api_name+skill_version+参数平铺，不嵌套 params', () => {
   const b = api.buildGatewayBody('/readdata/detail', { mode: 'annually' });
   assert.strictEqual(b.api_name, '/readdata/detail');
-  assert.strictEqual(b.skill_version, '1.0.4');
+  assert.strictEqual(b.skill_version, '1.0.5');
   assert.strictEqual(b.mode, 'annually');
   assert.strictEqual(b.params, undefined);
 });
 
-test('pickError: errcode=0→null；非0→message；upgrade_info→upgrade', () => {
+test('pickError: errcode=0→null；非0→message；纯 upgrade_info→upgrade；带业务数据的 upgrade_info 不拦截', () => {
   assert.strictEqual(api.pickError({ errcode: 0 }), null);
   assert.ok(api.pickError({ errcode: -2012, errmsg: '未登录' }).message);
   assert.ok(api.pickError({ upgrade_info: { message: '请升级' } }).upgrade);
+  // 网关在回包带业务数据时仍可能附 upgrade_info，此时应继续用数据，而不是整包丢弃
+  assert.strictEqual(api.pickError({ readTimes: {}, upgrade_info: { message: '请升级' } }), null);
+  assert.strictEqual(api.pickError({ bookId: 'b1', upgrade_info: { message: '请升级' } }), null);
 });
 
 test('toDailyMap: 秒时间戳→YYYY-MM-DD 键，值累加', () => {

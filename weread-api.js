@@ -3,19 +3,29 @@
 'use strict';
 
 const GATEWAY = 'https://i.weread.qq.com/api/agent/gateway';
-const SKILL_VERSION = '1.0.4';
+const SKILL_VERSION = '1.0.5';
 
 // 参数平铺在顶层（禁止包进 params）
 function buildGatewayBody(apiName, params, version) {
   return Object.assign({ api_name: apiName, skill_version: version || SKILL_VERSION }, params || {});
 }
 
-// null=正常；{upgrade:message}=需升级 skill_version；{errcode,message}=业务错误
+// 除错误/升级提示外是否还有业务字段（readTimes、bookId 等）
+function hasBusinessPayload(json) {
+  return Object.keys(json).some(k =>
+    k !== 'errcode' && k !== 'errmsg' && k !== 'message' && k !== 'upgrade_info');
+}
+
+// null=正常；{upgrade:message}=需升级 skill_version 且无可用数据；{errcode,message}=业务错误
+// 注：网关可能在回包带业务数据的同时附 upgrade_info 提示；此时以数据为准，不拦取数，
+// 否则 skill_version 落后一档就会把已取到的统计整包丢掉（表现为统计页闪一下又「未连接」）
 function pickError(json) {
   if (!json || typeof json !== 'object') return { errcode: -1, message: '空回包' };
-  if (json.upgrade_info && json.upgrade_info.message) return { upgrade: json.upgrade_info.message };
   const code = typeof json.errcode === 'number' ? json.errcode : 0;
   if (code !== 0) return { errcode: code, message: json.errmsg || json.message || ('errcode ' + code) };
+  if (json.upgrade_info && json.upgrade_info.message && !hasBusinessPayload(json)) {
+    return { upgrade: json.upgrade_info.message };
+  }
   return null;
 }
 
