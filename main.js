@@ -23,8 +23,39 @@ function forceRerender() {
   setTimeout(() => win.setSize(w, h), 150);
 }
 
-// 应用数据（登录态、缓存）存到项目内，保持自包含
-app.setPath('userData', path.join(__dirname, '.userdata'));
+// 应用数据（登录态、缓存）路径：
+// - 开发态（electron .）：存项目内 .userdata，保持自包含
+// - 安装态（.app 包内）：存 ~/Library/Application Support/WeRead-PC。
+//   不能继续用 __dirname/.userdata —— 那会落到 /Applications/.../Resources/app/ 下，
+//   包内不可靠（重装即丢），且读不到开发期配置，统计页会报「未连接微信读书」
+const isInstalled = app.isPackaged || !process.defaultApp || String(__dirname).includes('.app/Contents/Resources');
+const userDataDir = isInstalled
+  ? path.join(app.getPath('appData'), 'WeRead-PC')
+  : path.join(__dirname, '.userdata');
+app.setPath('userData', userDataDir);
+
+// 升级迁移：老版本把数据放在 app 包内 __dirname/.userdata，首次用新路径时搬过来，
+// 避免重装/升级后丢失登录态、API Key 与缓存（目标已有同名文件时不覆盖，以新路径为准）
+function migrateLegacyUserData() {
+  const legacy = path.join(__dirname, '.userdata');
+  if (!isInstalled || path.resolve(legacy) === path.resolve(userDataDir)) return;
+  if (!fs.existsSync(legacy)) return;
+  const hasOwn = fs.existsSync(path.join(userDataDir, 'auth.json')) || fs.existsSync(path.join(userDataDir, 'Cookies'));
+  if (hasOwn) return;
+  try {
+    fs.mkdirSync(userDataDir, { recursive: true });
+    for (const name of fs.readdirSync(legacy)) {
+      const src = path.join(legacy, name);
+      const dst = path.join(userDataDir, name);
+      if (fs.existsSync(dst)) continue;
+      fs.cpSync(src, dst, { recursive: true });
+    }
+    console.log('[userData] migrated legacy data ->', userDataDir);
+  } catch (e) {
+    console.warn('[userData] migrate failed:', e && e.message);
+  }
+}
+migrateLegacyUserData();
 
 // 书架缓存目录（跟随 userData，位于 .userdata/shelf-cache/，已被 .gitignore 忽略）
 const SHELF_CACHE_DIR = path.join(app.getPath('userData'), 'shelf-cache');
