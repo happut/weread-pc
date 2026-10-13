@@ -24,6 +24,20 @@ test('pickError: errcode=0→null；非0→message；纯 upgrade_info→upgrade�
   assert.strictEqual(api.pickError({ bookId: 'b1', upgrade_info: { message: '请升级' } }), null);
 });
 
+test('nextSkillVersion: 只在 latest_version 真的不同才跳转', () => {
+  assert.strictEqual(api.nextSkillVersion('1.0.5', {}), null);
+  assert.strictEqual(api.nextSkillVersion('1.0.5', { upgrade_info: {} }), null);
+  assert.strictEqual(api.nextSkillVersion('1.0.5', { upgrade_info: { latest_version: '1.0.5' } }), null);
+  assert.strictEqual(api.nextSkillVersion('1.0.5', { upgrade_info: { latest_version: '1.0.6' } }), '1.0.6');
+  assert.strictEqual(api.nextSkillVersion('1.0.5', { upgrade_info: { latest_version: 123 } }), null);
+});
+
+test('hasBusinessPayload: 唯 errcode/upgrade_info 等提示字段 → false', () => {
+  assert.strictEqual(api.hasBusinessPayload({ errcode: 0, upgrade_info: { message: 'x' } }), false);
+  assert.strictEqual(api.hasBusinessPayload({ readTimes: {} }), true);
+  assert.strictEqual(api.hasBusinessPayload({ bookId: 'b1' }), true);
+});
+
 test('toDailyMap: 秒时间戳→YYYY-MM-DD 键，值累加', () => {
   const m = api.toDailyMap({ 1735660800: 600, 1735747200: 1200 });
   assert.strictEqual(Object.values(m).reduce((a, b) => a + b, 0), 1800);

@@ -5,15 +5,27 @@
 const GATEWAY = 'https://i.weread.qq.com/api/agent/gateway';
 const SKILL_VERSION = '1.0.5';
 
+// 运行期实际使用的 skill_version。网关在 upgrade_info.latest_version 里给出目标版本，
+// 自动跟随并记忆，避免官方后续再发 Skill 版本时打挂取数（只升本地版本号，不依赖下载 SKILL.md）。
+let effectiveSkillVersion = SKILL_VERSION;
+
 // 参数平铺在顶层（禁止包进 params）
 function buildGatewayBody(apiName, params, version) {
-  return Object.assign({ api_name: apiName, skill_version: version || SKILL_VERSION }, params || {});
+  return Object.assign({ api_name: apiName, skill_version: version || effectiveSkillVersion }, params || {});
 }
 
 // 除错误/升级提示外是否还有业务字段（readTimes、bookId 等）
 function hasBusinessPayload(json) {
   return Object.keys(json).some(k =>
     k !== 'errcode' && k !== 'errmsg' && k !== 'message' && k !== 'upgrade_info');
+}
+
+// 从回包解析应跳转的 skill_version；无需跳转（无提示/已是最新）返回 null
+function nextSkillVersion(current, json) {
+  const latest = json && json.upgrade_info && json.upgrade_info.latest_version;
+  if (!latest || typeof latest !== 'string') return null;
+  if (latest === current) return null;
+  return latest;
 }
 
 // null=正常；{upgrade:message}=需升级 skill_version 且无可用数据；{errcode,message}=业务错误
@@ -185,19 +197,34 @@ function assembleBookBundle(info, progress, reviews) {
 }
 
 // ---- 网络（不写单测）----
-async function gatewayFetch(key, apiName, params) {
+// depth：防递归死循环（版本跳转最多重试 1 次）
+async function gatewayFetch(key, apiName, params, version, depth) {
   const { net } = require('electron');   // 懒加载：主进程运行时才有
+  const d = depth || 0;
+  const ver = version || effectiveSkillVersion;
   const res = await net.fetch(GATEWAY, {
     method: 'POST',
     headers: { 'Authorization': 'Bearer ' + key, 'Content-Type': 'application/json' },
-    body: JSON.stringify(buildGatewayBody(apiName, params))
+    body: JSON.stringify(buildGatewayBody(apiName, params, ver))
   });
   const text = await res.text();
   let json = null; try { json = JSON.parse(text); } catch (_) {}
+
+  // 兼容官方 Skill 升级：记住 latest_version；若本包无业务数据则用新版本号立刻重取一次
+  const bump = nextSkillVersion(ver, json);
+  if (bump) {
+    effectiveSkillVersion = bump;
+    if (d < 1 && !hasBusinessPayload(json)) {
+      return gatewayFetch(key, apiName, params, bump, d + 1);
+    }
+  }
+
   const err = pickError(json);
   if (err) { const e = new Error(err.upgrade ? ('需升级: ' + err.upgrade) : (err.message || 'gateway error')); e.detail = err; throw e; }
   return json;
 }
+
+function getSkillVersion() { return effectiveSkillVersion; }
 
 async function fetchStatsBundle(key) {
   const modes = { week: 'weekly', month: 'monthly', year: 'annually', overall: 'overall' };
@@ -222,7 +249,8 @@ async function fetchBookBundle(key, bookId) {
 
 module.exports = {
   GATEWAY, SKILL_VERSION,
-  buildGatewayBody, pickError, toDailyMap, toMonthMap, toYearMap,
+  buildGatewayBody, pickError, nextSkillVersion, hasBusinessPayload, getSkillVersion,
+  toDailyMap, toMonthMap, toYearMap,
   normalizeReaddataOne, assembleStatsBundle,
   normalizeBookInfo, normalizeProgress, normalizeReviews, assembleBookBundle,
   gatewayFetch, fetchStatsBundle, fetchBookBundle
