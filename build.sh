@@ -27,11 +27,16 @@ for f in *.js index.html package.json LICENSE; do
   [ -f "$f" ] && cp "$f" "$APP_DIR/Contents/Resources/app/"
 done
 
-echo "==> 注入应用图标（美短猫书）"
+echo "==> 注入应用图标（美短猫书）+ 可执行文件改名"
+# 可执行文件若仍叫 Electron，Dock/启动台可能回落到 Mach-O 内嵌的旧 Electron 图标，
+# 必须改成产品名，图标才会跟着 CFBundleIconFile 走
+if [ -f "$APP_DIR/Contents/MacOS/Electron" ]; then
+  mv "$APP_DIR/Contents/MacOS/Electron" "$APP_DIR/Contents/MacOS/$APP_NAME"
+fi
 if [ -f "assets/icons/WeRead-PC.icns" ]; then
   cp "assets/icons/WeRead-PC.icns" "$APP_DIR/Contents/Resources/WeRead-PC.icns"
-  # 去掉 Electron 默认图标，避免误导
-  rm -f "$APP_DIR/Contents/Resources/electron.icns"
+  # 双写一份 electron.icns，兜底仍按旧文件名取图的路径
+  cp "assets/icons/WeRead-PC.icns" "$APP_DIR/Contents/Resources/electron.icns"
 else
   echo "!! 未找到 assets/icons/WeRead-PC.icns，保留 Electron 默认图标" >&2
 fi
@@ -43,6 +48,7 @@ plutil -replace CFBundleDisplayName -string "WeRead PC" "$PLIST"
 plutil -replace CFBundleIdentifier -string "com.happut.wereadpc" "$PLIST"
 plutil -replace CFBundleShortVersionString -string "$VERSION" "$PLIST"
 plutil -replace CFBundleVersion -string "$VERSION" "$PLIST"
+plutil -replace CFBundleExecutable -string "$APP_NAME" "$PLIST"
 if [ -f "assets/icons/WeRead-PC.icns" ]; then
   plutil -replace CFBundleIconFile -string "WeRead-PC.icns" "$PLIST"
 fi
