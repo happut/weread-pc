@@ -266,7 +266,7 @@ function setFloatTurn(on) { floatTurnEl.classList.toggle('show', !!on); }
 // ---- 常驻左侧栏（类微信左右结构）：本地「上次打开的书」，点侧栏只换右侧 ----
 const readSideListEl = document.getElementById('readSideList');
 let openBooks = [];            // [{ bookId, title, author, cover, vm }]，本地持久化
-let shelfLiveOk = false;       // 在线 shelf/sync 是否成功（真实登录态，非缓存）
+let shelfLiveOk = null;        // null=未知/乐观，true=在线已登录，false=在线未登录；不能只看缓存
 let currentOpenBookId = null;
 
 const OPEN_BOOKS_KEY = 'wereadpc.openBooks';
@@ -935,7 +935,9 @@ function setAuthGuide(on) {
 }
 
 function refreshConnStatus() {
-  const hasShelf = shelfLiveOk;   // 不能只看缓存：退出登录后缓存仍在
+  // 未知时若已有书架缓存，乐观显示已连接，避免刷新过程灰→绿闪烁；
+  // 在线检测有结果后以 shelfLiveOk 为准（退出登录会变 false）
+  const hasShelf = shelfLiveOk === true || (shelfLiveOk == null && !!(currentVM && currentVM.bookCount != null));
   let hasKey = false;
   (async () => {
     try {
@@ -1076,6 +1078,7 @@ function bindAuthGuide() {
   try { auth = await window.wereadPC.readAuth(); } catch (_) { auth = null; }
   const hasKey = !!(auth && ((auth.manualKey || '').trim() || (auth.autoKey || '').trim()));
   if (cached && mode === 'shelf') {
+    shelfLiveOk = null;   // 乐观：先当已连接，在线探测会纠正
     paintShelf(cached);
     showShelf();
     refreshConnStatus();
