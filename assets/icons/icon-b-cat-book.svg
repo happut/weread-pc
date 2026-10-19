@@ -54,54 +54,91 @@
       <line x1="594" y1="621" x2="784" y2="630"/>
     </g>
 
-    <!-- cat body nestled in the book (American Shorthair black & white bicolor) -->
-    <!-- body: solid black -->
-    <ellipse cx="512" cy="520" rx="175" ry="130" fill="#222226"/>
-    <!-- white chest bib -->
-    <ellipse cx="512" cy="545" rx="78" ry="78" fill="#F2EEE6"/>
-    <!-- head: solid black -->
-    <circle cx="512" cy="400" r="148" fill="#222226"/>
+    <!-- cat: American Shorthair silver tabby, front face (round head, full cheeks) -->
+    <!-- body -->
+    <ellipse cx="512" cy="530" rx="175" ry="125" fill="#C5C9CE"/>
+    <!-- classic tabby body swirls -->
+    <g fill="none" stroke="#2A2A2E" stroke-width="15" stroke-linecap="round" opacity="0.95">
+      <path d="M385 500 Q435 468 485 512"/>
+      <path d="M405 560 Q475 528 545 575"/>
+      <path d="M545 500 Q605 470 655 520"/>
+      <path d="M545 565 Q615 538 660 575"/>
+    </g>
+    <!-- chest lighter silver -->
+    <ellipse cx="512" cy="555" rx="72" ry="58" fill="#E8EAEC" opacity="0.9"/>
 
-    <!-- ears -->
-    <path d="M395 310 L370 195 L475 265 Z" fill="#222226"/>
-    <path d="M629 310 L654 195 L549 265 Z" fill="#1A1A1E"/>
-    <path d="M405 295 L390 225 L455 268 Z" fill="#E0A8A8"/>
-    <path d="M619 295 L634 225 L569 268 Z" fill="#E0A8A8"/>
+    <!-- ears: wide-set, rounded tips (ASH style) -->
+    <path d="M380 320 Q360 210 470 275 Q430 300 380 320 Z" fill="#C5C9CE"/>
+    <path d="M644 320 Q664 210 554 275 Q594 300 644 320 Z" fill="#B4B9C0"/>
+    <path d="M395 305 Q385 235 455 280 Q425 295 395 305 Z" fill="#E8B4B8"/>
+    <path d="M629 305 Q639 235 569 280 Q599 295 629 305 Z" fill="#E8B4B8"/>
 
-    <!-- white face blaze (inverted V) -->
-    <path d="M512 280 L575 360 L555 430 L469 430 L449 360 Z" fill="#F2EEE6"/>
+    <!-- head: wide round face with full cheeks -->
+    <ellipse cx="512" cy="405" rx="155" ry="142" fill="#C5C9CE"/>
+    <!-- cheek fluff left/right for ASH fullness -->
+    <ellipse cx="390" cy="430" rx="55" ry="48" fill="#C5C9CE"/>
+    <ellipse cx="634" cy="430" rx="55" ry="48" fill="#B4B9C0"/>
 
-    <!-- closed eyes (cream stroke, readable on black) -->
-    <path d="M430 400 Q455 385 480 400" fill="none" stroke="#F2EEE6" stroke-width="12" stroke-linecap="round"/>
-    <path d="M544 400 Q569 385 594 400" fill="none" stroke="#F2EEE6" stroke-width="12" stroke-linecap="round"/>
-
-    <!-- muzzle: white -->
-    <ellipse cx="512" cy="455" rx="52" ry="38" fill="#F2EEE6"/>
-    <!-- nose: black on white muzzle -->
-    <path d="M512 432 L528 448 L496 448 Z" fill="#222226"/>
-    <!-- mouth -->
-    <path d="M512 448 Q512 465 495 472" fill="none" stroke="#3D3D3D" stroke-width="7" stroke-linecap="round"/>
-    <path d="M512 448 Q512 465 529 472" fill="none" stroke="#3D3D3D" stroke-width="7" stroke-linecap="round"/>
-
-    <!-- whiskers (cream, on black cheeks) -->
-    <g stroke="#F2EEE6" stroke-width="5" stroke-linecap="round" opacity="0.8">
-      <line x1="430" y1="450" x2="340" y2="435"/>
-      <line x1="430" y1="468" x2="345" y2="475"/>
-      <line x1="594" y1="450" x2="684" y2="435"/>
-      <line x1="594" y1="468" x2="679" y2="475"/>
+    <!-- forehead M mark -->
+    <g fill="none" stroke="#2A2A2E" stroke-width="14" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M455 318 L485 275 L512 318 L539 275 L569 318"/>
+    </g>
+    <!-- cheek stripes (classic tabby) -->
+    <g fill="none" stroke="#2A2A2E" stroke-width="12" stroke-linecap="round">
+      <path d="M370 385 Q345 375 328 370"/>
+      <path d="M375 425 Q345 425 325 428"/>
+      <path d="M380 465 Q355 472 338 480"/>
+      <path d="M654 385 Q679 375 696 370"/>
+      <path d="M649 425 Q679 425 699 428"/>
+      <path d="M644 465 Q669 472 686 480"/>
     </g>
 
-    <!-- front paws: white -->
-    <ellipse cx="420" cy="575" rx="52" ry="36" fill="#F2EEE6"/>
-    <ellipse cx="604" cy="575" rx="52" ry="36" fill="#E8E2D6"/>
-    <!-- toe beans hint -->
-    <g fill="#E0A8A8" opacity="0.9">
-      <ellipse cx="405" cy="575" rx="10" ry="8"/>
-      <ellipse cx="425" cy="568" rx="10" ry="8"/>
-      <ellipse cx="445" cy="575" rx="10" ry="8"/>
-      <ellipse cx="589" cy="575" rx="10" ry="8"/>
-      <ellipse cx="609" cy="568" rx="10" ry="8"/>
-      <ellipse cx="629" cy="575" rx="10" ry="8"/>
+    <!-- eyes: large almond, green iris (silver tabby ASH) -->
+    <ellipse cx="445" cy="405" rx="34" ry="28" fill="#F2EEE6"/>
+    <ellipse cx="579" cy="405" rx="34" ry="28" fill="#F2EEE6"/>
+    <ellipse cx="448" cy="406" rx="24" ry="22" fill="#5A9E6E"/>
+    <ellipse cx="576" cy="406" rx="24" ry="22" fill="#5A9E6E"/>
+    <ellipse cx="448" cy="406" rx="11" ry="16" fill="#1A1A1E"/>
+    <ellipse cx="576" cy="406" rx="11" ry="16" fill="#1A1A1E"/>
+    <circle cx="455" cy="398" r="6" fill="#F2EEE6" opacity="0.95"/>
+    <circle cx="583" cy="398" r="6" fill="#F2EEE6" opacity="0.95"/>
+    <!-- eyeliner -->
+    <g fill="none" stroke="#2A2A2E" stroke-width="5" stroke-linecap="round">
+      <path d="M412 398 Q445 372 478 398"/>
+      <path d="M546 398 Q579 372 612 398"/>
+    </g>
+
+    <!-- muzzle: cream-white, compact (short ASH nose) -->
+    <ellipse cx="512" cy="468" rx="48" ry="34" fill="#F2EEE6"/>
+    <!-- nose: terracotta brick -->
+    <path d="M512 448 L526 462 L498 462 Z" fill="#C45C48"/>
+    <!-- mouth -->
+    <path d="M512 462 Q512 478 496 484" fill="none" stroke="#3D3D3D" stroke-width="6" stroke-linecap="round"/>
+    <path d="M512 462 Q512 478 528 484" fill="none" stroke="#3D3D3D" stroke-width="6" stroke-linecap="round"/>
+    <!-- muzzle dots -->
+    <g fill="#B4B9C0">
+      <circle cx="480" cy="470" r="3"/><circle cx="544" cy="470" r="3"/>
+      <circle cx="478" cy="482" r="3"/><circle cx="546" cy="482" r="3"/>
+    </g>
+
+    <!-- whiskers -->
+    <g stroke="#3D3D3D" stroke-width="4" stroke-linecap="round" opacity="0.7">
+      <line x1="455" y1="470" x2="355" y2="455"/>
+      <line x1="455" y1="485" x2="360" y2="492"/>
+      <line x1="569" y1="470" x2="669" y2="455"/>
+      <line x1="569" y1="485" x2="664" y2="492"/>
+    </g>
+
+    <!-- front paws on the page -->
+    <ellipse cx="420" cy="580" rx="52" ry="36" fill="#C5C9CE"/>
+    <ellipse cx="604" cy="580" rx="52" ry="36" fill="#B4B9C0"/>
+    <g fill="none" stroke="#2A2A2E" stroke-width="9" stroke-linecap="round" opacity="0.85">
+      <path d="M398 568 L408 552"/><path d="M442 568 L432 552"/>
+      <path d="M582 568 L592 552"/><path d="M626 568 L616 552"/>
+    </g>
+    <g fill="#E8B4B8" opacity="0.9">
+      <ellipse cx="405" cy="580" rx="9" ry="7"/><ellipse cx="425" cy="573" rx="9" ry="7"/><ellipse cx="445" cy="580" rx="9" ry="7"/>
+      <ellipse cx="589" cy="580" rx="9" ry="7"/><ellipse cx="609" cy="573" rx="9" ry="7"/><ellipse cx="629" cy="580" rx="9" ry="7"/>
     </g>
 
     <!-- Zzz -->
