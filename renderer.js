@@ -344,6 +344,7 @@ function paintReadSide() {
       img.src = item.cover;
       img.alt = '';
       img.referrerPolicy = 'no-referrer';
+      img.addEventListener('error', () => { img.style.visibility = 'hidden'; });
       row.appendChild(img);
     } else {
       const ph = document.createElement('div');

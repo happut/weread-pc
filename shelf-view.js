@@ -34,7 +34,10 @@
       const img = el('img');
       if (lazy) img.dataset.src = vm.cover;  // 懒加载：进入视口才赋 src
       else img.src = vm.cover;               // 立即可见，直接加载
-      img.alt = vm.title;
+      // 不要 alt 文案：封面加载失败时浏览器会画竖排 alt 字，像“残影”
+      img.alt = '';
+      img.referrerPolicy = 'no-referrer';
+      img.addEventListener('error', () => { img.style.visibility = 'hidden'; });
       cover.appendChild(img);
     }
     card.appendChild(cover);
@@ -102,7 +105,8 @@
       this.viewport.scrollTop, this.viewport.clientHeight,
       this.rowHeight, this.totalRows, 1
     );
-    this.rowsEl.style.transform = 'translateY(' + (first * this.rowHeight) + 'px)';
+    // 用 top 定位而非 transform：避免 GPU 合成层在滚动/改宽时留残影
+    this.rowsEl.style.top = (first * this.rowHeight) + 'px';
     this.rowsEl.textContent = '';
     for (let r = first; r <= last; r++) {
       const row = el('div', 'grid-row');

@@ -304,8 +304,9 @@
     .grid-sizer { position: relative; width: 100%; }
     .grid-rows { position: absolute; top: 0; left: 0; width: 100%; }
     .grid-row { display: flex; gap: 14px; }
-    .grid-cell { flex: none; }
+    .grid-cell { flex: none; overflow: hidden; }
     .grid-cell .book-card { width: 100%; }
+    .book-card .cover img { background: #eef1f5; }
 
     .shelf-empty { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; color: var(--text-dim); }
 
