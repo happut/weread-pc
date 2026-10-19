@@ -267,6 +267,7 @@ function setFloatTurn(on) { floatTurnEl.classList.toggle('show', !!on); }
 const readSideListEl = document.getElementById('readSideList');
 let openBooks = [];            // [{ bookId, title, author, cover, vm }]，本地持久化
 let shelfLiveOk = null;        // null=未知/乐观，true=在线已登录，false=在线未登录；不能只看缓存
+let awaitingLogin = false;     // 「去登录」后等待扫码，成功则收回 webview 回原生书架
 let currentOpenBookId = null;
 
 const OPEN_BOOKS_KEY = 'wereadpc.openBooks';
@@ -582,12 +583,14 @@ async function refreshShelf() {
     hideLoading();
     if (!r.fresh && r.cached) setStatus('离线/未登录，展示本地缓存');
     refreshConnStatus();
-    if (shelfLiveOk && authGuideVisible) {
+    if (shelfLiveOk && (authGuideVisible || awaitingLogin)) {
+      awaitingLogin = false;
       setAuthGuide(false);
       showShelf();
+      setStatus('书架已连接');
     }
-    // 在线失败且本地无感登录 → 拉回向导
-    if (!shelfLiveOk && !r.fresh) {
+    // 在线失败 → 拉回向导；但「去登录」扫码过程中不能盖住二维码
+    if (!shelfLiveOk && !r.fresh && !awaitingLogin) {
       if (!authGuideVisible && !currentOpenBookId) setAuthGuide(true);
     }
     return;
@@ -885,11 +888,18 @@ function maybeDetectLogout(url) {
   if (/\/web\/login|passport|login\.qq|scan\/login/i.test(u)) {
     shelfLiveOk = false;
     refreshConnStatus();
-    if (!authGuideVisible && !currentOpenBookId) setAuthGuide(true);
+    // 扫码登录过程中跳到登录页是正常流程，不能把向导盖回去
+    if (!awaitingLogin && !authGuideVisible && !currentOpenBookId) setAuthGuide(true);
   }
 }
-webview.addEventListener('did-navigate', (e) => maybeDetectLogout(e.url));
-webview.addEventListener('did-navigate-in-page', (e) => maybeDetectLogout(e.url));
+webview.addEventListener('did-navigate', (e) => {
+  maybeDetectLogout(e.url);
+  if (awaitingLogin) refreshShelf();
+});
+webview.addEventListener('did-navigate-in-page', (e) => {
+  maybeDetectLogout(e.url);
+  if (awaitingLogin) refreshShelf();
+});
 webview.addEventListener('dom-ready', () => {
   domReady = true;
   applyFont(); // 整页跳转后缩放会丢失，重新应用
@@ -1006,13 +1016,15 @@ function bindAuthGuide() {
   const saveKey = document.getElementById('agSaveKey');
   const skip = document.getElementById('agSkip');
   if (goLogin) goLogin.addEventListener('click', () => {
-    // 露出服务 webview 的微信读书登录页
+    // 露出服务 webview 的微信读书登录/扫码页；成功后由 refreshShelf 收回原生书架
+    awaitingLogin = true;
     setAuthGuide(false);
     hideShelf();
-    showOnlyBookWebview(null);
     hideLoading();
+    showOnlyBookWebview(null);
+    // 先落到书架入口；未登录会重定向到扫码页，webview 需停在最上层可见
     try { webview.loadURL('https://weread.qq.com/web/shelf'); } catch (_) {}
-    setStatus('请扫码登录微信读书');
+    setStatus('请在网页中扫码登录微信读书');
   });
   if (recheck) recheck.addEventListener('click', async () => {
     await refreshShelf();
