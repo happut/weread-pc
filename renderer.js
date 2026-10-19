@@ -394,19 +394,18 @@ function rememberOpenBook(vm) {
     vm: { bookId: vm.bookId, title: vm.title, author: vm.author, cover: vm.cover,
           deepLink: vm.deepLink, readerUrl: vm.readerUrl }
   };
-  // 最近点击置顶：新书/已点都挪到最前，持久化
+  // 位置固定：新书追加到末尾；再点已有书只换高亮，列表不跳动
   const idx = openBooks.findIndex(x => x.bookId === id);
   if (idx === -1) {
-    openBooks.unshift(item);
+    openBooks.push(item);
     saveOpenBooks();
     currentOpenBookId = id;
     paintReadSide();
   } else {
-    openBooks.splice(idx, 1);
-    openBooks.unshift(item);
+    openBooks[idx] = item;
     saveOpenBooks();
     currentOpenBookId = id;
-    paintReadSide();   // 顺序变了，需要重排
+    updateSidebarHighlight();
   }
 }
 
