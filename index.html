@@ -157,6 +157,16 @@
       background: transparent; box-shadow: none; color: var(--text-dim); cursor: pointer; font-size: 14px;
     }
     .rs-collapse:hover { background: var(--hover); color: var(--text); }
+    /* 右缘中间的显著折叠把手 */
+    .rs-handle {
+      position: absolute; top: 50%; right: -12px; transform: translateY(-50%);
+      width: 24px; height: 56px; padding: 0;
+      border: 1px solid var(--bar-border); border-radius: 12px;
+      background: #fff; box-shadow: 2px 2px 8px rgba(16,18,24,.12);
+      color: var(--text-dim); font-size: 13px; cursor: pointer; z-index: 2;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .rs-handle:hover { color: var(--accent); border-color: var(--accent); background: var(--accent-soft); }
     .rs-list { flex: 1; overflow-y: auto; padding: 8px; }
     .rs-item {
       display: flex; align-items: center; gap: 8px; padding: 8px; border-radius: 8px;
@@ -200,7 +210,7 @@
     body.side-collapsed .side-nav button { justify-content: center; padding: 0; }
     body.side-collapsed .side-nav .nav-label { display: none; }
 
-    /* 左下角导航：书架 / 我的 / 设置 */
+    /* 左下角导航：书架 / 我的 / 设置（图标+文字水平居中） */
     .side-nav {
       flex: none; display: flex; flex-direction: column; gap: 4px;
       padding: 10px 8px 12px; border-top: 1px solid var(--bar-border);
@@ -208,7 +218,7 @@
     .side-nav button {
       height: 38px; border: none; border-radius: 8px; background: transparent;
       box-shadow: none; color: var(--text); font-size: 13px; cursor: pointer;
-      display: flex; align-items: center; gap: 8px; padding: 0 12px; justify-content: flex-start;
+      display: flex; align-items: center; gap: 8px; padding: 0 12px; justify-content: center;
     }
     .side-nav button:hover { background: var(--hover); }
     .side-nav button.active { background: var(--accent-soft); color: var(--accent); font-weight: 600; }
@@ -479,6 +489,7 @@
       <button class="rs-collapse" id="rsCollapse" title="折叠/展开侧栏">⟨</button>
       <span class="rs-title-text">上次打开</span>
     </div>
+    <button class="rs-handle" id="rsHandle" title="折叠/展开侧栏">⟨</button>
     <div class="rs-list" id="readSideList"></div>
     <nav class="side-nav">
       <button id="navShelf" class="active" title="书架"><span class="nav-ico">📚</span><span class="nav-label">书架</span></button>

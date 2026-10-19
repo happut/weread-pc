@@ -287,22 +287,23 @@ function saveOpenBooks() {
   try { localStorage.setItem(OPEN_BOOKS_KEY, JSON.stringify(openBooks)); } catch (_) {}
 }
 
-// 侧栏折叠：导航收成图标，书收成封面小图
+// 侧栏折叠：导航收成图标，书收成封面小图；右缘有显著把手
 const SIDEBAR_COLLAPSED_KEY = 'wereadpc.sideCollapsed';
 const rsCollapseBtn = document.getElementById('rsCollapse');
+const rsHandleBtn = document.getElementById('rsHandle');
 function setSideCollapsed(on) {
   document.body.classList.toggle('side-collapsed', !!on);
-  if (rsCollapseBtn) {
-    rsCollapseBtn.textContent = on ? '⟩' : '⟨';
-    rsCollapseBtn.title = on ? '展开侧栏' : '折叠侧栏';
-  }
+  const arrow = on ? '⟩' : '⟨';
+  const title = on ? '展开侧栏' : '折叠侧栏';
+  if (rsCollapseBtn) { rsCollapseBtn.textContent = arrow; rsCollapseBtn.title = title; }
+  if (rsHandleBtn) { rsHandleBtn.textContent = arrow; rsHandleBtn.title = title; }
   try { localStorage.setItem(SIDEBAR_COLLAPSED_KEY, on ? '1' : '0'); } catch (_) {}
 }
-if (rsCollapseBtn) {
-  rsCollapseBtn.addEventListener('click', () => {
-    setSideCollapsed(!document.body.classList.contains('side-collapsed'));
-  });
+function toggleSideCollapsed() {
+  setSideCollapsed(!document.body.classList.contains('side-collapsed'));
 }
+if (rsCollapseBtn) rsCollapseBtn.addEventListener('click', toggleSideCollapsed);
+if (rsHandleBtn) rsHandleBtn.addEventListener('click', toggleSideCollapsed);
 try {
   if (localStorage.getItem(SIDEBAR_COLLAPSED_KEY) === '1') setSideCollapsed(true);
 } catch (_) {}
