@@ -267,7 +267,7 @@ function setFloatTurn(on) { floatTurnEl.classList.toggle('show', !!on); }
 // ---- 阅读左侧「在读」侧栏（首页保持独立：library-mode 不显示）----
 const readSideListEl = document.getElementById('readSideList');
 const readSideHomeBtn = document.getElementById('readSideHome');
-let openBooks = [];            // [{ bookId, title, author, cover, vm }]，最近打开在前
+let openBooks = [];            // [{ bookId, title, author, cover, vm }]，按首次打开顺序固定
 let currentOpenBookId = null;
 
 function setReadSide(on) { document.body.classList.toggle('read-side-on', !!on); }
@@ -330,7 +330,10 @@ function rememberOpenBook(vm) {
     vm: { bookId: vm.bookId, title: vm.title, author: vm.author, cover: vm.cover,
           deepLink: vm.deepLink, readerUrl: vm.readerUrl }
   };
-  openBooks = [item, ...openBooks.filter(x => x.bookId !== id)];
+  // 顺序固定：只追加新书，已有项保持原位（否则点几次列表会乱跳）
+  const idx = openBooks.findIndex(x => x.bookId === id);
+  if (idx === -1) openBooks.push(item);
+  else openBooks[idx] = item;
   currentOpenBookId = id;
   paintReadSide();
 }
