@@ -24,15 +24,17 @@
 
     #bar {
       height: 52px;
-      display: flex;
+      display: none;
       align-items: center;
       gap: 14px;
       padding: 0 16px;
+      margin-left: 200px;
       background: var(--bar-bg);
       border-bottom: 1px solid var(--bar-border);
       -webkit-user-select: none;
       user-select: none;
     }
+    body.reader-mode #bar { display: flex; }
     .group { display: flex; align-items: center; gap: 8px; }
     .sep { width: 1px; height: 22px; background: var(--bar-border); }
     .hint { font-size: 12px; color: var(--text-dim); }
@@ -124,25 +126,22 @@
     #status { font-size: 12px; color: var(--text-dim); font-variant-numeric: tabular-nums; }
     #status.on { color: #1f9254; }
 
-    #wrap { display: flex; flex-direction: column; height: calc(100% - 52px); }
+    #wrap { display: flex; flex-direction: column; height: 100%; margin-left: 200px; width: calc(100% - 200px); }
+    body.reader-mode #wrap { height: calc(100% - 52px); }
     webview { flex: 1; width: 100%; }
     /* 每本书独立 webview：隐藏时保留页面状态，切换不重载 */
     webview.book-wv { flex: 1; width: 100%; }
     webview.is-hidden { display: none !important; }
 
-    /* ===== 阅读左侧「在读」侧栏（仅阅读视图；首页保持独立不显示）===== */
+    /* ===== 常驻左侧栏：在读列表 + 左下角 书架/我的 ===== */
     #readSide {
-      position: fixed; top: 52px; left: 0; bottom: 0; width: 200px; z-index: 8;
-      display: none; flex-direction: column;
+      position: fixed; top: 0; left: 0; bottom: 0; width: 200px; z-index: 12;
+      display: flex; flex-direction: column;
       background: var(--bar-bg); border-right: 1px solid var(--bar-border);
       -webkit-user-select: none; user-select: none;
     }
-    body.read-side-on #readSide { display: flex; }
-    body.read-side-on #wrap { margin-left: 200px; width: calc(100% - 200px); }
-    body.library-mode #readSide { display: none; }
-    body.library-mode #wrap { margin-left: 0; width: 100%; }
     .rs-head {
-      height: 44px; flex: none; display: flex; align-items: center; padding: 0 12px;
+      height: 52px; flex: none; display: flex; align-items: center; padding: 0 12px;
       font-size: 13px; font-weight: 600; color: var(--text-dim); letter-spacing: .5px;
       border-bottom: 1px solid var(--bar-border);
     }
@@ -177,19 +176,28 @@
     .rs-item:hover .rs-close { display: block; }
     .rs-item .rs-close:hover { background: #e2554d; color: #fff; }
     .rs-empty { padding: 24px 12px; text-align: center; font-size: 12px; color: var(--text-dim); }
-    .rs-home {
-      flex: none; margin: 8px; height: 34px;
-      border: 1px solid var(--bar-border); border-radius: var(--radius);
-      background: #fff; color: var(--text); cursor: pointer; font-size: 13px;
+
+    /* 左下角导航：书架 / 我的 */
+    .side-nav {
+      flex: none; display: flex; flex-direction: column; gap: 4px;
+      padding: 10px 8px 12px; border-top: 1px solid var(--bar-border);
     }
-    .rs-home:hover { border-color: var(--accent); color: var(--accent); }
+    .side-nav button {
+      height: 38px; border: none; border-radius: 8px; background: transparent;
+      box-shadow: none; color: var(--text); font-size: 13px; cursor: pointer;
+      display: flex; align-items: center; gap: 8px; padding: 0 12px; justify-content: flex-start;
+    }
+    .side-nav button:hover { background: var(--hover); }
+    .side-nav button.active { background: var(--accent-soft); color: var(--accent); font-weight: 600; }
+    .side-nav button .nav-ico { width: 18px; text-align: center; font-size: 15px; }
 
     /* ===== 原生书架覆盖层（方向2 清爽网格）===== */
     #shelf {
-      position: fixed; top: 52px; left: 0; right: 0; bottom: 0; z-index: 10;
+      position: fixed; top: 0; left: 200px; right: 0; bottom: 0; z-index: 10;
       display: none; flex-direction: column;
       background: #fafbfc; color: var(--text);
     }
+    body.reader-mode #shelf { top: 52px; }
     #shelf.show { display: flex; }
 
     /* ===== 全屏 loading 覆盖层（不透明，盖住 webview；翻书动画）===== */
@@ -268,31 +276,14 @@
 
     .shelf-empty { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; color: var(--text-dim); }
 
-    /* ===== 书库顶栏双 Tab ===== */
-    #libtabs {
-      position: fixed; top: 0; left: 0; right: 0; height: 52px; z-index: 12;
-      display: none; align-items: center; gap: 6px; padding: 0 16px;
-      background: var(--bar-bg); border-bottom: 1px solid var(--bar-border);
-      -webkit-user-select: none; user-select: none;
-    }
-    body.library-mode #libtabs { display: flex; }
-    #libtabs .tab {
-      height: 52px; padding: 0 14px; border: none; border-radius: 0; background: transparent;
-      box-shadow: none; font-size: 14px; color: var(--text-dim); position: relative;
-    }
-    #libtabs .tab:hover { background: transparent; color: var(--text); }
-    #libtabs .tab.active { color: var(--accent); font-weight: 600; }
-    #libtabs .tab.active::after {
-      content: ''; position: absolute; left: 14px; right: 14px; bottom: 0; height: 2px;
-      background: var(--accent); border-radius: 2px 2px 0 0;
-    }
     .icon-btn { width: 32px; padding: 0; font-size: 16px; }
 
     /* ===== 统计看板 ===== */
     #stats {
-      position: fixed; top: 52px; left: 0; right: 0; bottom: 0; z-index: 10;
+      position: fixed; top: 0; left: 200px; right: 0; bottom: 0; z-index: 10;
       display: none; overflow-y: auto; background: #fafbfc; padding: 18px 22px 40px;
     }
+    body.reader-mode #stats { top: 52px; }
     #stats.show { display: block; }
     .stat-card { background: #fff; border: 1px solid #eef0f3; border-radius: 12px; padding: 16px 18px; margin-bottom: 16px; box-shadow: 0 1px 3px rgba(16,18,24,.06); }
     .stat-h { font-size: 13px; color: var(--text-dim); margin-bottom: 12px; }
@@ -459,17 +450,15 @@
   <div id="wrap" data-page-node-id="ZsOtHB5CM0U8vtMH9SotTI">
     <webview id="weread" src="https://weread.qq.com/web/shelf" partition="persist:weread" allowpopups="false" data-page-node-id="GYiNRdTz0mMYnG1HhzsmSg"></webview>
   </div>
-  <aside id="readSide" aria-label="在读书籍">
-    <div class="rs-head">在读</div>
+  <aside id="readSide" aria-label="侧栏">
+    <div class="rs-head">继续阅读</div>
     <div class="rs-list" id="readSideList"></div>
-    <button class="rs-home" id="readSideHome" title="回到书架（首页）">书架</button>
+    <nav class="side-nav">
+      <button id="navShelf" class="active" title="书架"><span class="nav-ico">📚</span>书架</button>
+      <button id="navStats" title="我的 · 阅读统计"><span class="nav-ico">👤</span>我的</button>
+      <button id="settingsBtn" title="设置"><span class="nav-ico">⚙</span>设置</button>
+    </nav>
   </aside>
-  <div id="libtabs">
-    <button class="tab active" id="tabShelf">书架</button>
-    <button class="tab" id="tabStats">统计</button>
-    <span class="spacer"></span>
-    <button class="icon-btn" id="settingsBtn" title="设置">⚙</button>
-  </div>
   <div id="shelf"></div>
   <div id="loading">
     <div class="book">

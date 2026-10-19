@@ -15,9 +15,8 @@ const nextBtn = document.getElementById('nextBtn');
 const statusEl = document.getElementById('status');
 const shelfEl = document.getElementById('shelf');
 const loadingEl = document.getElementById('loading');
-const libtabsEl = document.getElementById('libtabs');
-const tabShelf = document.getElementById('tabShelf');
-const tabStats = document.getElementById('tabStats');
+const navShelfBtn = document.getElementById('navShelf');
+const navStatsBtn = document.getElementById('navStats');
 const settingsBtn = document.getElementById('settingsBtn');
 const statsEl = document.getElementById('stats');
 const detailEl = document.getElementById('detail');
@@ -259,32 +258,39 @@ function setStatus(text, on) {
 }
 
 // ---- 书库层显隐（书架 / 统计 双 Tab 互斥；进阅读时整层撤下）----
-function setLibraryMode(on) {
-  document.body.classList.toggle('library-mode', !!on);
+function setReaderMode(on) {
+  document.body.classList.toggle('reader-mode', !!on);
 }
 function setFloatTurn(on) { floatTurnEl.classList.toggle('show', !!on); }
 
-// ---- 阅读左侧「在读」侧栏（首页保持独立：library-mode 不显示）----
+// ---- 常驻左侧栏：上部「继续阅读」全量列表；左下角 书架/我的 ----
 const readSideListEl = document.getElementById('readSideList');
-const readSideHomeBtn = document.getElementById('readSideHome');
-let openBooks = [];            // [{ bookId, title, author, cover, vm }]，按首次打开顺序固定
+let openBooks = [];            // 会话内打开过的书（webview 保活）
 let currentOpenBookId = null;
 
-function setReadSide(on) { document.body.classList.toggle('read-side-on', !!on); }
+// 侧栏列表 = 书架「继续阅读」全量（有阅读进度的书）+ 会话内额外打开过的书
+function sidebarBooks() {
+  const fromShelf = (currentVM && currentVM.continueReadingAll) || [];
+  const seen = new Set(fromShelf.map(b => String(b.bookId)));
+  const extra = openBooks.filter(x => !seen.has(x.bookId)).map(x => x.vm);
+  return fromShelf.concat(extra);
+}
 
 function paintReadSide() {
   if (!readSideListEl) return;
   readSideListEl.textContent = '';
-  if (!openBooks.length) {
+  const books = sidebarBooks();
+  if (!books.length) {
     const em = document.createElement('div');
     em.className = 'rs-empty';
-    em.textContent = '暂无在读书籍';
+    em.textContent = '暂无继续阅读';
     readSideListEl.appendChild(em);
     return;
   }
-  for (const item of openBooks) {
+  for (const item of books) {
+    const id = String(item.bookId);
     const row = document.createElement('div');
-    row.className = 'rs-item' + (item.bookId === currentOpenBookId ? ' current' : '');
+    row.className = 'rs-item' + (id === currentOpenBookId ? ' current' : '');
     row.title = item.title + (item.author ? ' · ' + item.author : '');
     if (item.cover) {
       const img = document.createElement('img');
@@ -312,18 +318,22 @@ function paintReadSide() {
       meta.appendChild(a);
     }
     row.appendChild(meta);
-    const x = document.createElement('button');
-    x.className = 'rs-close';
-    x.title = '关闭此书';
-    x.textContent = '✕';
-    x.addEventListener('click', (e) => {
-      e.stopPropagation();
-      closeOpenBook(item.bookId);
-    });
-    row.appendChild(x);
+    // 仅会话内已打开的书显示 ✕（关闭保活 webview）；纯列表项点即打开
+    const isOpen = openBooks.some(x => x.bookId === id);
+    if (isOpen) {
+      const x = document.createElement('button');
+      x.className = 'rs-close';
+      x.title = '关闭此书';
+      x.textContent = '✕';
+      x.addEventListener('click', (e) => {
+        e.stopPropagation();
+        closeOpenBook(id);
+      });
+      row.appendChild(x);
+    }
     row.addEventListener('click', () => {
-      if (item.bookId === currentOpenBookId) return;
-      openBook(item.vm);
+      if (id === currentOpenBookId) return;
+      openBook(item);
     });
     readSideListEl.appendChild(row);
   }
@@ -365,33 +375,36 @@ function closeOpenBook(bookId) {
   }
 }
 
+function setNavActive(which) {
+  navShelfBtn.classList.toggle('active', which === 'shelf');
+  navStatsBtn.classList.toggle('active', which === 'stats');
+}
+
 function showShelf() {
   mode = 'shelf'; libTab = 'shelf';
-  setLibraryMode(true);
+  setReaderMode(false);
   setFloatTurn(false);
-  setReadSide(false);          // 首页保持独立，隐藏阅读侧栏
   showOnlyBookWebview(null);   // 露出服务 webview；book webview 保活但隐藏
   shelfEl.classList.add('show');
   statsEl.classList.remove('show');
-  tabShelf.classList.add('active'); tabStats.classList.remove('active');
+  setNavActive('shelf');
 }
 function showStats() {
   mode = 'shelf'; libTab = 'stats';
-  setLibraryMode(true);
+  setReaderMode(false);
   setFloatTurn(false);
-  setReadSide(false);          // 首页/统计同属书库层，不显示阅读侧栏
   showOnlyBookWebview(null);
   shelfEl.classList.remove('show');
   statsEl.classList.add('show');
-  tabStats.classList.add('active'); tabShelf.classList.remove('active');
+  setNavActive('stats');
   loadStats();
 }
-function hideShelf() {          // 进阅读：撤下整个书库层（含顶栏）
+function hideShelf() {          // 进阅读：主区改显示 webview
   mode = 'reader';
-  setLibraryMode(false);
+  setReaderMode(true);
   shelfEl.classList.remove('show');
   statsEl.classList.remove('show');
-  setReadSide(true);           // 阅读视图露出「在读」侧栏
+  setFloatTurn(true);
 }
 
 // ---- 全屏 loading（不透明盖住 webview，官方网页界面永不露出）----
@@ -494,6 +507,7 @@ function paintShelf(vm, hintErr) {
     onDetail: openDetail,
     onRefresh: () => refreshShelf()
   });
+  paintReadSide();   // 侧栏「继续阅读」随书架数据刷新
   showBubbleOnce();   // 首次提示单击/双击
 }
 
@@ -762,17 +776,19 @@ modeBtn.addEventListener('click', async () => {
   setTimeout(refreshModeLabel, 700);   // 等阅读页重排后回读新状态
 });
 homeBtn.addEventListener('click', () => {
-  closeDetail();   // Task 10 定义
-  showShelf();
-  refreshShelf();  // 返回书架时后台刷新进度
-});
-readSideHomeBtn.addEventListener('click', () => {
   closeDetail();
   showShelf();
   refreshShelf();
 });
-tabShelf.addEventListener('click', () => { if (mode === 'shelf') showShelf(); });
-tabStats.addEventListener('click', () => { if (mode === 'shelf') showStats(); });
+navShelfBtn.addEventListener('click', () => {
+  closeDetail();
+  showShelf();
+  refreshShelf();
+});
+navStatsBtn.addEventListener('click', () => {
+  closeDetail();
+  showStats();
+});
 settingsBtn.addEventListener('click', () => openSettings());
 intervalInput.addEventListener('change', () => {
   if (autoTimer) { stopAuto(); startAuto(); } // 修改间隔后重启
