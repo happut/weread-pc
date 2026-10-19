@@ -85,13 +85,25 @@
     root.removeEventListener('resize', this._onResize);
     this.viewport.removeEventListener('scroll', this._onScroll);
     if (this._raf) { cancelAnimationFrame(this._raf); this._raf = null; }
+    if (this._pendingReflow) { cancelAnimationFrame(this._pendingReflow); this._pendingReflow = null; }
   };
   VirtualGrid.prototype._schedule = function () {
     if (this._raf) return;
     this._raf = requestAnimationFrame(() => { this._raf = null; this.paint(); });
   };
   VirtualGrid.prototype.reflow = function () {
-    const w = this.viewport.clientWidth || 1;
+    const w = this.viewport.clientWidth;
+    // 容器尚不可见（display:none）时宽为 0，此时算出的列宽会变成 0，
+    // 书名挤成竖排细条。延到下一帧/可见后再量。
+    if (!w) {
+      if (!this._pendingReflow) {
+        this._pendingReflow = requestAnimationFrame(() => {
+          this._pendingReflow = null;
+          if (this.viewport.clientWidth) this.reflow();
+        });
+      }
+      return;
+    }
     this.cols = Math.max(1, Math.floor((w + this.gap) / (this.minCellW + this.gap)));
     this.cellW = (w - (this.cols - 1) * this.gap) / this.cols;
     this.cellH = this.cellW * this.ratio + this.textH;

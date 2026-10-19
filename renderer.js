@@ -441,6 +441,9 @@ function showShelf() {
   shelfEl.classList.add('show');
   statsEl.classList.remove('show');
   setNavActive('shelf');
+  // 书架在 display:none 时可能已绘制虚拟网格（clientWidth=0 → 单元格 0 宽），
+  // 显示后必须重排，否则「全部藏书」只剩竖条碎字（假残影）
+  if (shelfEl._grid) requestAnimationFrame(() => shelfEl._grid.reflow());
 }
 function showStats() {
   mode = 'shelf'; libTab = 'stats';
