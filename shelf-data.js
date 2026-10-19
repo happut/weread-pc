@@ -77,6 +77,8 @@
     return {
       stats: computeStats(raw || {}, pm),
       continueReading: buildContinueReading(raw || {}, pm, limit),
+      // 侧栏「继续阅读」需要全量（首页行仍截取 limit 条）
+      continueReadingAll: buildContinueReading(raw || {}, pm, Infinity),
       allBooks: buildAllBooks(raw || {}, pm),
       bookCount: (raw && raw.bookCount) || ((raw && raw.books) ? raw.books.length : 0),
       fetchedAt: Date.now()

@@ -15,9 +15,8 @@ const nextBtn = document.getElementById('nextBtn');
 const statusEl = document.getElementById('status');
 const shelfEl = document.getElementById('shelf');
 const loadingEl = document.getElementById('loading');
-const libtabsEl = document.getElementById('libtabs');
-const tabShelf = document.getElementById('tabShelf');
-const tabStats = document.getElementById('tabStats');
+const navShelfBtn = document.getElementById('navShelf');
+const navStatsBtn = document.getElementById('navStats');
 const settingsBtn = document.getElementById('settingsBtn');
 const statsEl = document.getElementById('stats');
 const detailEl = document.getElementById('detail');
@@ -259,18 +258,69 @@ function setStatus(text, on) {
 }
 
 // ---- 书库层显隐（书架 / 统计 双 Tab 互斥；进阅读时整层撤下）----
-function setLibraryMode(on) {
-  document.body.classList.toggle('library-mode', !!on);
+function setReaderMode(on) {
+  document.body.classList.toggle('reader-mode', !!on);
 }
 function setFloatTurn(on) { floatTurnEl.classList.toggle('show', !!on); }
 
-// ---- 阅读左侧「在读」侧栏（首页保持独立：library-mode 不显示）----
+// ---- 常驻左侧栏（类微信左右结构）：本地「上次打开的书」，点侧栏只换右侧 ----
 const readSideListEl = document.getElementById('readSideList');
-const readSideHomeBtn = document.getElementById('readSideHome');
-let openBooks = [];            // [{ bookId, title, author, cover, vm }]，按首次打开顺序固定
+let openBooks = [];            // [{ bookId, title, author, cover, vm }]，本地持久化
 let currentOpenBookId = null;
 
-function setReadSide(on) { document.body.classList.toggle('read-side-on', !!on); }
+const OPEN_BOOKS_KEY = 'wereadpc.openBooks';
+function loadOpenBooks() {
+  try {
+    const raw = JSON.parse(localStorage.getItem(OPEN_BOOKS_KEY) || '[]');
+    if (Array.isArray(raw)) {
+      openBooks = raw.filter(x => x && x.bookId && x.vm).map(x => ({
+        bookId: String(x.bookId),
+        title: x.title || '',
+        author: x.author || '',
+        cover: x.cover || '',
+        vm: x.vm
+      }));
+    }
+  } catch (_) { openBooks = []; }
+}
+function saveOpenBooks() {
+  try { localStorage.setItem(OPEN_BOOKS_KEY, JSON.stringify(openBooks)); } catch (_) {}
+}
+
+// 侧栏折叠：导航收成图标，书收成封面小图；右缘有显著把手
+const SIDEBAR_COLLAPSED_KEY = 'wereadpc.sideCollapsed';
+const rsCollapseBtn = document.getElementById('rsCollapse');
+const rsHandleBtn = document.getElementById('rsHandle');
+function setSideCollapsed(on) {
+  document.body.classList.toggle('side-collapsed', !!on);
+  const arrow = on ? '⟩' : '⟨';
+  const title = on ? '展开侧栏' : '折叠侧栏';
+  if (rsCollapseBtn) { rsCollapseBtn.textContent = arrow; rsCollapseBtn.title = title; }
+  if (rsHandleBtn) { rsHandleBtn.textContent = arrow; rsHandleBtn.title = title; }
+  try { localStorage.setItem(SIDEBAR_COLLAPSED_KEY, on ? '1' : '0'); } catch (_) {}
+  // 主区 left 随 --side-w 瞬时变化，强制一次重绘，避免合成层残影
+  requestAnimationFrame(() => {
+    shelfEl.style.display = shelfEl.style.display;
+    if (statsEl) statsEl.style.opacity = '0.999';
+    requestAnimationFrame(() => { if (statsEl) statsEl.style.opacity = ''; });
+  });
+}
+function toggleSideCollapsed() {
+  setSideCollapsed(!document.body.classList.contains('side-collapsed'));
+}
+if (rsCollapseBtn) rsCollapseBtn.addEventListener('click', toggleSideCollapsed);
+if (rsHandleBtn) rsHandleBtn.addEventListener('click', toggleSideCollapsed);
+try {
+  if (localStorage.getItem(SIDEBAR_COLLAPSED_KEY) === '1') setSideCollapsed(true);
+} catch (_) {}
+
+// 只切高亮，不整表重绘（左栏不重载）
+function updateSidebarHighlight() {
+  if (!readSideListEl) return;
+  for (const row of readSideListEl.querySelectorAll('.rs-item')) {
+    row.classList.toggle('current', row.getAttribute('data-book-id') === currentOpenBookId);
+  }
+}
 
 function paintReadSide() {
   if (!readSideListEl) return;
@@ -278,13 +328,15 @@ function paintReadSide() {
   if (!openBooks.length) {
     const em = document.createElement('div');
     em.className = 'rs-empty';
-    em.textContent = '暂无在读书籍';
+    em.textContent = '暂无本地打开记录';
     readSideListEl.appendChild(em);
     return;
   }
   for (const item of openBooks) {
+    const id = String(item.bookId);
     const row = document.createElement('div');
-    row.className = 'rs-item' + (item.bookId === currentOpenBookId ? ' current' : '');
+    row.className = 'rs-item' + (id === currentOpenBookId ? ' current' : '');
+    row.setAttribute('data-book-id', id);
     row.title = item.title + (item.author ? ' · ' + item.author : '');
     if (item.cover) {
       const img = document.createElement('img');
@@ -292,6 +344,7 @@ function paintReadSide() {
       img.src = item.cover;
       img.alt = '';
       img.referrerPolicy = 'no-referrer';
+      img.addEventListener('error', () => { img.style.visibility = 'hidden'; });
       row.appendChild(img);
     } else {
       const ph = document.createElement('div');
@@ -314,15 +367,16 @@ function paintReadSide() {
     row.appendChild(meta);
     const x = document.createElement('button');
     x.className = 'rs-close';
-    x.title = '关闭此书';
+    x.title = '从列表移除';
     x.textContent = '✕';
     x.addEventListener('click', (e) => {
       e.stopPropagation();
-      closeOpenBook(item.bookId);
+      closeOpenBook(id);
     });
     row.appendChild(x);
     row.addEventListener('click', () => {
-      if (item.bookId === currentOpenBookId) return;
+      // 仅在已在读这本书时忽略；从书架/统计点回同一本也要切右侧进阅读
+      if (id === currentOpenBookId && mode === 'reader') return;
       openBook(item.vm);
     });
     readSideListEl.appendChild(row);
@@ -340,58 +394,73 @@ function rememberOpenBook(vm) {
     vm: { bookId: vm.bookId, title: vm.title, author: vm.author, cover: vm.cover,
           deepLink: vm.deepLink, readerUrl: vm.readerUrl }
   };
-  // 顺序固定：只追加新书，已有项保持原位（否则点几次列表会乱跳）
+  // 位置固定：新书追加到末尾；再点已有书只换高亮，列表不跳动
   const idx = openBooks.findIndex(x => x.bookId === id);
-  if (idx === -1) openBooks.push(item);
-  else openBooks[idx] = item;
-  currentOpenBookId = id;
-  paintReadSide();
+  if (idx === -1) {
+    openBooks.push(item);
+    saveOpenBooks();
+    currentOpenBookId = id;
+    paintReadSide();
+  } else {
+    openBooks[idx] = item;
+    saveOpenBooks();
+    currentOpenBookId = id;
+    updateSidebarHighlight();
+  }
 }
 
-// 关闭某本在读书：销毁其保活 webview；若关的是当前，切到下一本或回首页
+// 从本地列表移除：销毁保活 webview；若关的是当前，切到下一本或回书架
 function closeOpenBook(bookId) {
   const id = String(bookId);
   const wasCurrent = id === currentOpenBookId;
   openBooks = openBooks.filter(x => x.bookId !== id);
+  saveOpenBooks();
   destroyBookWebview(id);
-  if (!wasCurrent) { paintReadSide(); return; }
+  paintReadSide();
+  if (!wasCurrent) return;
   currentOpenBookId = null;
   if (openBooks.length) {
     openBook(openBooks[0].vm);
   } else {
     showShelf();
     refreshShelf();
-    paintReadSide();
+    updateSidebarHighlight();
   }
+}
+
+function setNavActive(which) {
+  navShelfBtn.classList.toggle('active', which === 'shelf');
+  navStatsBtn.classList.toggle('active', which === 'stats');
 }
 
 function showShelf() {
   mode = 'shelf'; libTab = 'shelf';
-  setLibraryMode(true);
+  setReaderMode(false);
   setFloatTurn(false);
-  setReadSide(false);          // 首页保持独立，隐藏阅读侧栏
   showOnlyBookWebview(null);   // 露出服务 webview；book webview 保活但隐藏
   shelfEl.classList.add('show');
   statsEl.classList.remove('show');
-  tabShelf.classList.add('active'); tabStats.classList.remove('active');
+  setNavActive('shelf');
+  // 书架在 display:none 时可能已绘制虚拟网格（clientWidth=0 → 单元格 0 宽），
+  // 显示后必须重排，否则「全部藏书」只剩竖条碎字（假残影）
+  if (shelfEl._grid) requestAnimationFrame(() => shelfEl._grid.reflow());
 }
 function showStats() {
   mode = 'shelf'; libTab = 'stats';
-  setLibraryMode(true);
+  setReaderMode(false);
   setFloatTurn(false);
-  setReadSide(false);          // 首页/统计同属书库层，不显示阅读侧栏
   showOnlyBookWebview(null);
   shelfEl.classList.remove('show');
   statsEl.classList.add('show');
-  tabStats.classList.add('active'); tabShelf.classList.remove('active');
+  setNavActive('stats');
   loadStats();
 }
-function hideShelf() {          // 进阅读：撤下整个书库层（含顶栏）
+function hideShelf() {          // 进阅读：主区改显示 webview
   mode = 'reader';
-  setLibraryMode(false);
+  setReaderMode(true);
   shelfEl.classList.remove('show');
   statsEl.classList.remove('show');
-  setReadSide(true);           // 阅读视图露出「在读」侧栏
+  setFloatTurn(true);
 }
 
 // ---- 全屏 loading（不透明盖住 webview，官方网页界面永不露出）----
@@ -412,7 +481,7 @@ function waitReaderReady(cb, timeoutMs, wv) {
   }, 120);
 }
 
-// 正文就绪：先在 loading 遮盖下撤书架层，再撤 loading，露出已渲染好的 reader
+// 正文就绪：撤 loading 露出已渲染好的 reader（侧栏始终不动）
 function revealReader() {
   hideShelf();
   hideLoading();
@@ -428,12 +497,12 @@ function openBook(vm) {
   if (!id) return;
   rememberOpenBook(vm);
 
-  // 已有保活 webview：热切换，不重载、不闪 loading
+  // 已有保活 webview：热切换，右侧内容不重载、侧栏也不重绘
   const existing = bookWebviews.get(id);
   if (existing) {
     currentOpenBookId = id;
     showOnlyBookWebview(id);
-    paintReadSide();
+    updateSidebarHighlight();
     domReady = true;
     applyFont();
     hideLoading();
@@ -443,7 +512,8 @@ function openBook(vm) {
   }
 
   const url = window.ShelfView.readerUrlFor(vm);
-  // 新书：独立 webview 首次加载，盖不透明 loading，等正文 canvas 就绪再露出
+  // 新书：独立 webview 首次加载。右侧立刻切到阅读区（左栏不动），
+  // loading 只盖主区，等正文 canvas 就绪再撤
   const wv = document.createElement('webview');
   wv.className = 'book-wv';
   wv.setAttribute('partition', 'persist:weread');
@@ -453,6 +523,7 @@ function openBook(vm) {
   bookWebviews.set(id, wv);
 
   currentOpenBookId = id;
+  hideShelf();                 // 右侧立即进入阅读布局，避免“整页刷新”错觉
   showOnlyBookWebview(id);
   pendingOpen = true;
   pendingOpenBookId = id;
@@ -503,14 +574,13 @@ async function refreshShelf() {
   const vm = r.fresh || r.cached;
   if (vm) {
     paintShelf(vm);
-    showShelf();
     hideLoading();
     if (r.err && r.cached) setStatus('刷新失败，展示上次数据');
-  } else {
-    // 无数据（多半未登录）：撤 loading，停在 webview 登录页
-    hideShelf();
-    hideLoading();
+    return;
   }
+  // 无数据（多半未登录）：仅当还停在书架页时才让位给 webview 登录页
+  hideLoading();
+  if (mode === 'shelf' && libTab === 'shelf') hideShelf();
 }
 
 // 自动取 Key：spike 发现端点才生效；成功写回 auth.json 的 autoKey。失败静默（走手动兜底）。
@@ -762,17 +832,19 @@ modeBtn.addEventListener('click', async () => {
   setTimeout(refreshModeLabel, 700);   // 等阅读页重排后回读新状态
 });
 homeBtn.addEventListener('click', () => {
-  closeDetail();   // Task 10 定义
-  showShelf();
-  refreshShelf();  // 返回书架时后台刷新进度
-});
-readSideHomeBtn.addEventListener('click', () => {
   closeDetail();
   showShelf();
   refreshShelf();
 });
-tabShelf.addEventListener('click', () => { if (mode === 'shelf') showShelf(); });
-tabStats.addEventListener('click', () => { if (mode === 'shelf') showStats(); });
+navShelfBtn.addEventListener('click', () => {
+  closeDetail();
+  showShelf();
+  refreshShelf();
+});
+navStatsBtn.addEventListener('click', () => {
+  closeDetail();
+  showStats();
+});
 settingsBtn.addEventListener('click', () => openSettings());
 intervalInput.addEventListener('change', () => {
   if (autoTimer) { stopAuto(); startAuto(); } // 修改间隔后重启
@@ -814,6 +886,8 @@ webview.addEventListener('dom-ready', () => {
 // 等 dom-ready→refreshShelf 决定（书架 or 未登录登录页）。官方网页书架全程不露出。
 (async function bootShelfFromCache() {
   if (!window.wereadPC || !window.ShelfView) return;
+  loadOpenBooks();     // 侧栏默认展示本地上次打开的书（不依赖「最近阅读」）
+  paintReadSide();
   let cached = null;
   try { cached = await window.wereadPC.readShelfCache(); } catch (_) { cached = null; }
   if (cached && mode === 'shelf') {

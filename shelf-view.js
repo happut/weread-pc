@@ -34,7 +34,10 @@
       const img = el('img');
       if (lazy) img.dataset.src = vm.cover;  // 懒加载：进入视口才赋 src
       else img.src = vm.cover;               // 立即可见，直接加载
-      img.alt = vm.title;
+      // 不要 alt 文案：封面加载失败时浏览器会画竖排 alt 字，像“残影”
+      img.alt = '';
+      img.referrerPolicy = 'no-referrer';
+      img.addEventListener('error', () => { img.style.visibility = 'hidden'; });
       cover.appendChild(img);
     }
     card.appendChild(cover);
@@ -82,13 +85,25 @@
     root.removeEventListener('resize', this._onResize);
     this.viewport.removeEventListener('scroll', this._onScroll);
     if (this._raf) { cancelAnimationFrame(this._raf); this._raf = null; }
+    if (this._pendingReflow) { cancelAnimationFrame(this._pendingReflow); this._pendingReflow = null; }
   };
   VirtualGrid.prototype._schedule = function () {
     if (this._raf) return;
     this._raf = requestAnimationFrame(() => { this._raf = null; this.paint(); });
   };
   VirtualGrid.prototype.reflow = function () {
-    const w = this.viewport.clientWidth || 1;
+    const w = this.viewport.clientWidth;
+    // 容器尚不可见（display:none）时宽为 0，此时算出的列宽会变成 0，
+    // 书名挤成竖排细条。延到下一帧/可见后再量。
+    if (!w) {
+      if (!this._pendingReflow) {
+        this._pendingReflow = requestAnimationFrame(() => {
+          this._pendingReflow = null;
+          if (this.viewport.clientWidth) this.reflow();
+        });
+      }
+      return;
+    }
     this.cols = Math.max(1, Math.floor((w + this.gap) / (this.minCellW + this.gap)));
     this.cellW = (w - (this.cols - 1) * this.gap) / this.cols;
     this.cellH = this.cellW * this.ratio + this.textH;
@@ -102,7 +117,8 @@
       this.viewport.scrollTop, this.viewport.clientHeight,
       this.rowHeight, this.totalRows, 1
     );
-    this.rowsEl.style.transform = 'translateY(' + (first * this.rowHeight) + 'px)';
+    // 用 top 定位而非 transform：避免 GPU 合成层在滚动/改宽时留残影
+    this.rowsEl.style.top = (first * this.rowHeight) + 'px';
     this.rowsEl.textContent = '';
     for (let r = first; r <= last; r++) {
       const row = el('div', 'grid-row');
