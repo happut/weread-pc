@@ -98,12 +98,15 @@ function createWindow() {
 
   win = new BrowserWindow({
     // 默认单页展示：阅读器在宽 ≤1000px 时自动单页（消除双页中缝）；
-    // 想双页时手动拉宽窗口即可，「单页」按钮可随时调回
+    // 想双页时手动拉宽窗口即可
     width: 1000,
     height: 840,
     minWidth: 900,
     minHeight: 600,
     title: 'WeRead PC',
+    // 去掉系统标题栏，红绿灯嵌进左侧栏头部（隐藏 inset）
+    titleBarStyle: 'hiddenInset',
+    trafficLightPosition: { x: 14, y: 16 },
     webPreferences: {
       webviewTag: true,
       contextIsolation: true,

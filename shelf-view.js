@@ -24,8 +24,47 @@
     return n;
   }
 
-  // 单张书卡；handlers = { onOpen, onDetail }；lazy=true 封面走 data-src 懒加载
-  // 单击→详情（延迟 220ms 避开双击）；双击→阅读
+  // 全局右键菜单（一次一个）
+  let activeMenu = null;
+  function closeBookMenu() {
+    if (activeMenu) { activeMenu.remove(); activeMenu = null; }
+  }
+  function openBookMenu(vm, x, y, h) {
+    closeBookMenu();
+    const menu = el('div', 'book-menu');
+    const items = [
+      { t: '阅读', fn: () => h.onOpen && h.onOpen(vm) },
+      { t: '查看详情', fn: () => h.onDetail && h.onDetail(vm) },
+      { t: '查看统计', fn: () => h.onDetail && h.onDetail(vm, 'stats') }
+    ];
+    items.forEach(it => {
+      const mi = el('div', 'book-menu-item', it.t);
+      mi.addEventListener('click', (e) => {
+        e.stopPropagation();
+        closeBookMenu();
+        it.fn();
+      });
+      menu.appendChild(mi);
+    });
+    menu.style.left = x + 'px';
+    menu.style.top = y + 'px';
+    document.body.appendChild(menu);
+    activeMenu = menu;
+    // 贴边防溢出
+    const r = menu.getBoundingClientRect();
+    if (r.right > window.innerWidth) menu.style.left = (x - r.width) + 'px';
+    if (r.bottom > window.innerHeight) menu.style.top = (y - r.height) + 'px';
+  }
+  if (typeof document !== 'undefined') {
+    document.addEventListener('click', closeBookMenu);
+    document.addEventListener('contextmenu', (e) => {
+      if (activeMenu && !e.target.closest('.book-menu')) closeBookMenu();
+    });
+    window.addEventListener('blur', closeBookMenu);
+  }
+
+  // 单张书卡；handlers = { onOpen, onDetail(vm, tab?) }；lazy=true 封面走 data-src 懒加载
+  // 单击→直接阅读；右键 / ⋯ → 菜单（阅读 / 详情 / 统计）
   function bookCard(vm, handlers, lazy) {
     const h = handlers || {};
     const card = el('div', 'book-card');
@@ -47,14 +86,22 @@
     fill.style.width = Math.max(0, Math.min(100, vm.progress || 0)) + '%';
     bar.appendChild(fill);
     card.appendChild(bar);
-    let clickTimer = null;
-    card.addEventListener('click', () => {
-      if (clickTimer) return;
-      clickTimer = setTimeout(() => { clickTimer = null; if (h.onDetail) h.onDetail(vm); }, 220);
+    // hover ⋯：右键的可发现入口
+    const more = el('button', 'book-more', '⋯');
+    more.title = '更多';
+    more.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const r = more.getBoundingClientRect();
+      openBookMenu(vm, r.left, r.bottom + 4, h);
     });
-    card.addEventListener('dblclick', () => {
-      if (clickTimer) { clearTimeout(clickTimer); clickTimer = null; }
+    cover.appendChild(more);
+
+    card.addEventListener('click', () => {
       if (h.onOpen) h.onOpen(vm);
+    });
+    card.addEventListener('contextmenu', (e) => {
+      e.preventDefault();
+      openBookMenu(vm, e.clientX, e.clientY, h);
     });
     return card;
   }

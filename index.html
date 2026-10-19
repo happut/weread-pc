@@ -35,8 +35,12 @@
       border-bottom: 1px solid var(--bar-border);
       -webkit-user-select: none;
       user-select: none;
+      -webkit-app-region: drag;
     }
+    #bar button, #bar input, #bar .segmented, #bar .group { -webkit-app-region: no-drag; }
     body.reader-mode #bar { display: flex; }
+    #bar .hint { font-size: 11px; }
+    #bar .sep { height: 16px; }
     .group { display: flex; align-items: center; gap: 8px; }
     .sep { width: 1px; height: 22px; background: var(--bar-border); }
     .hint { font-size: 12px; color: var(--text-dim); }
@@ -47,28 +51,26 @@
       align-items: center;
       justify-content: center;
       gap: 5px;
-      height: 32px;
-      padding: 0 12px;
-      white-space: nowrap;   /* 防止状态栏长文案把按钮挤成两行“乱码” */
+      height: 30px;
+      padding: 0 11px;
+      white-space: nowrap;
       flex-shrink: 0;
-      border: 1px solid var(--bar-border);
-      border-radius: var(--radius);
-      background: #fff;
+      border: 1px solid transparent;
+      border-radius: 8px;
+      background: #f0f1f4;
       color: var(--text);
-      font-size: 13px;
+      font-size: 12.5px;
       font-family: inherit;
       cursor: pointer;
       transition: background .12s, border-color .12s, color .12s, box-shadow .12s;
-      box-shadow: 0 1px 1px rgba(16, 18, 24, .04);
     }
-    button:hover { background: var(--hover); border-color: #d3d6dd; }
-    button:active { background: #e8eaee; box-shadow: none; }
+    button:hover { background: #e6e8ee; border-color: transparent; }
+    button:active { background: #dfe3ea; box-shadow: none; }
     button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
     button.primary {
       background: var(--accent);
       border-color: var(--accent);
       color: #fff;
-      box-shadow: 0 1px 2px rgba(47, 125, 225, .25);
     }
     button.primary:hover { background: #2a6fc8; border-color: #2a6fc8; }
     button.primary:active { background: #2560af; }
@@ -135,7 +137,7 @@
     webview.book-wv { flex: 1; width: 100%; }
     webview.is-hidden { display: none !important; }
 
-    /* ===== 常驻左侧栏：上次打开 + 左下角 书架/我的/设置（可折叠）===== */
+    /* ===== 常驻左侧栏：书桌 + 左下角 书架/我的/设置（可折叠）===== */
     #readSide {
       position: fixed; top: 0; left: 0; bottom: 0; width: var(--side-w); z-index: 12;
       display: flex; flex-direction: column;
@@ -143,10 +145,13 @@
       -webkit-user-select: none; user-select: none;
     }
     .rs-head {
-      height: 52px; flex: none; display: flex; align-items: center; gap: 4px; padding: 0 8px;
+      height: 52px; flex: none; display: flex; align-items: center; gap: 4px;
+      padding: 0 8px 0 76px;
       font-size: 13px; font-weight: 600; color: var(--text-dim); letter-spacing: .5px;
       border-bottom: 1px solid var(--bar-border);
+      -webkit-app-region: drag;
     }
+    .rs-head .rs-collapse, .rs-head .rs-title-text { -webkit-app-region: no-drag; }
     .rs-head .rs-title-text {
       flex: 1; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis;
       padding-left: 4px;
@@ -222,6 +227,53 @@
     .side-nav button:hover { background: var(--hover); }
     .side-nav button.active { background: var(--accent-soft); color: var(--accent); font-weight: 600; }
     .side-nav button .nav-ico { width: 18px; text-align: center; font-size: 15px; flex: none; }
+
+    /* ===== 首次连接向导（token + cookie 两步）===== */
+    #authGuide {
+      position: fixed; top: 0; left: var(--side-w); right: 0; bottom: 0; z-index: 11;
+      display: none; overflow-y: auto;
+      background: #fafbfc; color: var(--text); padding: 28px 32px 40px;
+    }
+    #authGuide.show { display: block; }
+    .ag-title { font-size: 18px; font-weight: 700; margin-bottom: 6px; }
+    .ag-sub { font-size: 13px; color: var(--text-dim); margin-bottom: 20px; line-height: 1.6; }
+    .ag-step {
+      background: #fff; border: 1px solid var(--bar-border); border-radius: 12px;
+      padding: 16px 18px; margin-bottom: 14px; max-width: 560px;
+    }
+    .ag-step.done { border-color: #b7e4c7; background: #f6fcf8; }
+    .ag-step-h { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+    .ag-step-h .t { font-size: 15px; font-weight: 600; }
+    .ag-tag {
+      font-size: 11px; padding: 2px 8px; border-radius: 10px; font-weight: 600;
+    }
+    .ag-tag.must { background: #e8f1fd; color: var(--accent); }
+    .ag-tag.opt { background: #f3f0ff; color: #7a5af5; }
+    .ag-tag.ok { background: #eafaf1; color: #1f9254; }
+    .ag-desc { font-size: 13px; color: #4a4f5a; line-height: 1.7; margin-bottom: 12px; }
+    .ag-row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+    .ag-row input[type=text] {
+      flex: 1; min-width: 200px; height: 32px; padding: 0 10px;
+      border: 1px solid var(--bar-border); border-radius: 6px; font-size: 12px;
+      font-family: ui-monospace, Menlo, monospace;
+    }
+    .ag-status { font-size: 12px; color: var(--text-dim); margin-top: 8px; }
+    .ag-status.ok { color: #1f9254; }
+
+    /* 侧栏底部连接状态 */
+    .conn-line {
+      display: flex; align-items: center; gap: 6px;
+      font-size: 11px; color: var(--text-dim); padding: 2px 12px;
+    }
+    .conn-line .dot {
+      width: 7px; height: 7px; border-radius: 50%; background: #c5cad3; flex: none;
+    }
+    .conn-line.ok .dot { background: #239a3b; }
+    .conn-line.ok { color: #1f9254; }
+    .conn-line button {
+      margin-left: auto; border: none; background: transparent; box-shadow: none;
+      color: var(--accent); font-size: 11px; padding: 0; height: auto; cursor: pointer;
+    }
 
     /* ===== 原生书架覆盖层（方向2 清爽网格）===== */
     #shelf {
@@ -299,6 +351,23 @@
     .book-card .pbar { height: 3px; border-radius: 2px; background: rgba(128,128,128,.2); overflow: hidden; margin-top: 4px; }
     .book-card .pbar > i { display: block; height: 100%; background: var(--accent); }
     .book-card:hover .cover { box-shadow: 0 3px 10px rgba(16,18,24,.16); }
+    .book-more {
+      position: absolute; top: 6px; right: 6px; width: 24px; height: 24px; padding: 0;
+      border: none; border-radius: 6px; background: rgba(255,255,255,.92);
+      box-shadow: 0 1px 4px rgba(16,18,24,.12); color: var(--text); font-size: 14px;
+      display: none; line-height: 1;
+    }
+    .book-card:hover .book-more { display: inline-flex; }
+    .book-menu {
+      position: fixed; z-index: 40; min-width: 120px; padding: 4px;
+      background: #fff; border: 1px solid var(--bar-border); border-radius: 8px;
+      box-shadow: 0 8px 24px rgba(16,18,24,.14);
+    }
+    .book-menu-item {
+      padding: 7px 12px; border-radius: 6px; font-size: 13px; cursor: pointer;
+      -webkit-user-select: none; user-select: none;
+    }
+    .book-menu-item:hover { background: var(--hover); }
 
     .grid-viewport { flex: 1; overflow-y: auto; position: relative; }
     .grid-sizer { position: relative; width: 100%; }
@@ -473,12 +542,10 @@
 
     <div class="spacer" data-page-node-id="OkNw7Snaq0OAqS9X2iPUWh"></div>
 
-    <div class="group" data-page-node-id="A9RBFyyNJqrDmMsuRbYRuK">
-      <span id="status" data-page-node-id="fNZCPg4bkIYVccz7xwMOfc"></span>
-      <button id="modeBtn" title="切换阅读页的 上下滚动 / 翻页 模式（点击阅读页内的模式控件）">模式</button>
-      <button id="singlePageBtn" title="把窗口调到单页宽度（约 1000px），自动消除双页中缝">单页</button>
-      <button id="rerenderBtn" title="跨屏拖动后正文错位时，点此强制重新排版">重绘</button>
-      <button id="homeBtn" title="回到书架" data-page-node-id="blnZgrH209lrlSFGXFEvpg">书架</button>
+    <div class="group">
+      <span id="status"></span>
+      <button id="singlePageBtn" class="ghost" title="把窗口调到单页宽度（约 1000px），自动消除双页中缝">单页</button>
+      <button id="rerenderBtn" class="ghost icon-only" title="跨屏拖动后正文错位时，点此强制重新排版">⟳</button>
     </div>
   </div>
   <div id="wrap" data-page-node-id="ZsOtHB5CM0U8vtMH9SotTI">
@@ -487,10 +554,12 @@
   <aside id="readSide" aria-label="侧栏">
     <div class="rs-head">
       <button class="rs-collapse" id="rsCollapse" title="折叠/展开侧栏">⟨</button>
-      <span class="rs-title-text">上次打开</span>
+      <span class="rs-title-text">书桌</span>
     </div>
     <button class="rs-handle" id="rsHandle" title="折叠/展开侧栏">⟨</button>
     <div class="rs-list" id="readSideList"></div>
+    <div class="conn-line" id="connShelf"><span class="dot"></span><span>书架</span><button type="button" data-act="login">去登录</button></div>
+    <div class="conn-line" id="connStats"><span class="dot"></span><span>统计</span><button type="button" data-act="key">去开通</button></div>
     <nav class="side-nav">
       <button id="navShelf" class="active" title="书架"><span class="nav-ico">📚</span><span class="nav-label">书架</span></button>
       <button id="navStats" title="我的 · 阅读统计"><span class="nav-ico">👤</span><span class="nav-label">我的</span></button>
@@ -498,6 +567,32 @@
     </nav>
   </aside>
   <div id="shelf"></div>
+  <div id="authGuide" aria-label="连接向导">
+    <div class="ag-title">连接微信读书</div>
+    <div class="ag-sub">首次使用需要两步：登录书架（必须），开通统计 API（可选）。完成后本向导会自动消失。</div>
+    <div class="ag-step" id="agStepCookie">
+      <div class="ag-step-h"><span class="t">1. 登录微信读书</span><span class="ag-tag must">必须</span><span class="ag-tag ok" id="agCookieOk" style="display:none">已连接</span></div>
+      <div class="ag-desc">使用微信扫码登录网页版。登录态保存在本地（Cookie），用于同步书架与阅读。</div>
+      <div class="ag-row">
+        <button id="agGoLogin" class="primary">去登录</button>
+        <button id="agRecheckCookie">我已登录，刷新</button>
+      </div>
+      <div class="ag-status" id="agCookieStatus">未检测到登录</div>
+    </div>
+    <div class="ag-step" id="agStepKey">
+      <div class="ag-step-h"><span class="t">2. 开通统计 API</span><span class="ag-tag opt">可选</span><span class="ag-tag ok" id="agKeyOk" style="display:none">已连接</span></div>
+      <div class="ag-desc">访问微信读书官方授权页生成 API Key（wrk- 开头），统计看板依赖它。生成后本页会尝试自动识别，也可手动粘贴。</div>
+      <div class="ag-row">
+        <button id="agGoSkills">打开授权页</button>
+        <input type="text" id="agKeyInput" placeholder="wrk-…" autocomplete="off" spellcheck="false" />
+        <button id="agSaveKey">保存</button>
+      </div>
+      <div class="ag-status" id="agKeyStatus">未配置 API Key</div>
+    </div>
+    <div class="ag-row" style="margin-top: 8px">
+      <button id="agSkip">稍后再说</button>
+    </div>
+  </div>
   <div id="loading">
     <div class="book">
       <div class="half l"></div>

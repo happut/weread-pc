@@ -102,8 +102,11 @@
     const tabs = el('div', 'dt-tabs');
     const body = el('div', 'dt-body');
     const defs = [['概览', paneOverview], ['书评', paneReviews], ['统计', paneStats]];
+    var initIdx = 0;
+    if (h.initialTab === 'stats') initIdx = 2;
+    else if (h.initialTab === 'reviews') initIdx = 1;
     defs.forEach(function (d, i) {
-      const b = el('button', i === 0 ? 'active' : null, d[0]);
+      const b = el('button', i === initIdx ? 'active' : null, d[0]);
       b.addEventListener('click', function () {
         Array.prototype.forEach.call(tabs.children, function (c) { c.classList.remove('active'); });
         b.classList.add('active');
@@ -113,7 +116,7 @@
       tabs.appendChild(b);
     });
     container.appendChild(tabs);
-    body.appendChild(defs[0][1](v));   // 默认概览
+    body.appendChild(defs[initIdx][1](v));
     container.appendChild(body);
   }
 

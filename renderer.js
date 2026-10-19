@@ -6,10 +6,8 @@ const fontMinus = document.getElementById('fontMinus');
 const fontPlus = document.getElementById('fontPlus');
 const intervalInput = document.getElementById('interval');
 const autoToggle = document.getElementById('autoToggle');
-const homeBtn = document.getElementById('homeBtn');
 const rerenderBtn = document.getElementById('rerenderBtn');
 const singlePageBtn = document.getElementById('singlePageBtn');
-const modeBtn = document.getElementById('modeBtn');
 const prevBtn = document.getElementById('prevBtn');
 const nextBtn = document.getElementById('nextBtn');
 const statusEl = document.getElementById('status');
@@ -148,14 +146,7 @@ const MODE_CLICK_JS = `
 `;
 
 // 读阅读页当前模式控件文案，镜像到外壳按钮；找不到则回落到"模式"
-async function refreshModeLabel() {
-  let label = null;
-  try { label = await activeWv().executeJavaScript(MODE_FIND_JS); } catch (_) { label = null; }
-  modeBtn.textContent = label || '模式';
-  modeBtn.title = label
-    ? '当前阅读页模式控件：' + label + '（点击切换）'
-    : '切换阅读页的 上下滚动 / 翻页 模式（需在阅读页内）';
-}
+async function refreshModeLabel() { /* 模式按钮已移除 */ }
 
 // 临时探针：dump 阅读页模式相关 DOM 候选到 .userdata/modeprobe.json，用于定位真实选择器
 // 注意：模式控件常在阅读器自带设置弹层里，弹层没开时节点可能 display:none，
@@ -216,13 +207,7 @@ const MODE_PROBE_JS = `
   return JSON.stringify(out);
 })();
 `;
-async function dumpModeProbe() {
-  if (!window.wereadPC || !window.wereadPC.writeProbe) return;
-  try {
-    const dump = await activeWv().executeJavaScript(MODE_PROBE_JS);
-    await window.wereadPC.writeProbe(dump);
-  } catch (_) {}
-}
+async function dumpModeProbe() { /* 调试探针已随模式按钮移除 */ }
 
 function clampZoom(z) {
   return Math.round(Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, z)) * 100) / 100;
@@ -263,9 +248,11 @@ function setReaderMode(on) {
 }
 function setFloatTurn(on) { floatTurnEl.classList.toggle('show', !!on); }
 
-// ---- 常驻左侧栏（类微信左右结构）：本地「上次打开的书」，点侧栏只换右侧 ----
+// ---- 常驻左侧栏（类微信左右结构）：本地「书桌」（打开过的书），点侧栏只换右侧 ----
 const readSideListEl = document.getElementById('readSideList');
 let openBooks = [];            // [{ bookId, title, author, cover, vm }]，本地持久化
+let shelfLiveOk = null;        // null=未知/乐观，true=在线已登录，false=在线未登录；不能只看缓存
+let awaitingLogin = false;     // 「去登录」后等待扫码，成功则收回 webview 回原生书架
 let currentOpenBookId = null;
 
 const OPEN_BOOKS_KEY = 'wereadpc.openBooks';
@@ -328,7 +315,7 @@ function paintReadSide() {
   if (!openBooks.length) {
     const em = document.createElement('div');
     em.className = 'rs-empty';
-    em.textContent = '暂无本地打开记录';
+    em.textContent = '书桌空空如也';
     readSideListEl.appendChild(em);
     return;
   }
@@ -438,6 +425,8 @@ function showShelf() {
   setReaderMode(false);
   setFloatTurn(false);
   showOnlyBookWebview(null);   // 露出服务 webview；book webview 保活但隐藏
+  if (authGuideEl) authGuideEl.classList.remove('show');
+  authGuideVisible = false;
   shelfEl.classList.add('show');
   statsEl.classList.remove('show');
   setNavActive('shelf');
@@ -571,11 +560,24 @@ function paintShelf(vm, hintErr) {
 // 取数并渲染：先缓存秒开，再后台刷新
 async function refreshShelf() {
   const r = await window.ShelfFetch.loadShelf(webview, window.wereadPC);
+  // 仅在线拉取成功才算「已登录」；缓存只用于展示，不代表登录态（退出后缓存还在）
+  shelfLiveOk = !!r.fresh;
   const vm = r.fresh || r.cached;
   if (vm) {
     paintShelf(vm);
     hideLoading();
-    if (r.err && r.cached) setStatus('刷新失败，展示上次数据');
+    if (!r.fresh && r.cached) setStatus('离线/未登录，展示本地缓存');
+    refreshConnStatus();
+    if (shelfLiveOk && (authGuideVisible || awaitingLogin)) {
+      awaitingLogin = false;
+      setAuthGuide(false);
+      showShelf();
+      setStatus('书架已连接');
+    }
+    // 在线失败 → 拉回向导；但「去登录」扫码过程中不能盖住二维码
+    if (!shelfLiveOk && !r.fresh && !awaitingLogin) {
+      if (!authGuideVisible && !currentOpenBookId) setAuthGuide(true);
+    }
     return;
   }
   // 无数据（多半未登录）：仅当还停在书架页时才让位给 webview 登录页
@@ -640,16 +642,16 @@ async function loadStats() {
 // ---- 详情侧栏 ----
 const DETAIL_TTL = 7 * 24 * 3600 * 1000;   // 7 天
 let currentDetailBookId = null;   // 当前详情侧栏对应的 bookId，用于异步竞态守卫
-function detailHandlers(vm) {
-  return { onClose: closeDetail, onRead: () => openBook(vm) };
+function detailHandlers(vm, tab) {
+  return { onClose: closeDetail, onRead: () => openBook(vm), initialTab: tab };
 }
-// vm = 书架 book VM（含 bookId/title/cover/deepLink/readerUrl）
-function openDetail(vm) {
+// vm = 书架 book VM（含 bookId/title/cover/deepLink/readerUrl）；tab: 'stats'|'reviews'|undefined
+function openDetail(vm, tab) {
   if (!vm || !vm.bookId) return;
   closeBubble();
   currentDetailBookId = vm.bookId;   // 标记当前请求，供 loadDetail 竞态守卫
   detailEl.classList.add('show');
-  const h = detailHandlers(vm);
+  const h = detailHandlers(vm, tab);
   // 先用书架 VM 画占位（封面/书名立即可见），再后台补详情
   window.DetailView.render(detailEl, window.BookDetailData.buildDetailViewModel({
     ok: false, info: { bookId: vm.bookId, title: vm.title, author: vm.author, cover: vm.cover }
@@ -819,23 +821,6 @@ async function locateModeControl() {
   }
   return null;
 }
-modeBtn.addEventListener('click', async () => {
-  await dumpModeProbe();               // 临时探针：先 dump 当前阅读页 DOM（弹层开着也一并抓）
-  const hit = await locateModeControl();
-  if (!hit) { setStatus('未找到模式控件'); return; }
-  // 合成 .click() 无效，改用主进程向 guest 注入真实鼠标事件（isTrusted），指向当前 book webview
-  let ok = false;
-  if (window.wereadPC && window.wereadPC.clickGuest) {
-    try { ok = await window.wereadPC.clickGuest(activeGuestId(), hit.x, hit.y); } catch (_) { ok = false; }
-  }
-  setStatus(ok ? '已切换模式' : '点击失败');
-  setTimeout(refreshModeLabel, 700);   // 等阅读页重排后回读新状态
-});
-homeBtn.addEventListener('click', () => {
-  closeDetail();
-  showShelf();
-  refreshShelf();
-});
 navShelfBtn.addEventListener('click', () => {
   closeDetail();
   showShelf();
@@ -866,6 +851,23 @@ window.addEventListener('keydown', (e) => {
 });
 
 // ---- webview 生命周期 ----
+function maybeDetectLogout(url) {
+  const u = String(url || '');
+  if (/\/web\/login|passport|login\.qq|scan\/login/i.test(u)) {
+    shelfLiveOk = false;
+    refreshConnStatus();
+    // 扫码登录过程中跳到登录页是正常流程，不能把向导盖回去
+    if (!awaitingLogin && !authGuideVisible && !currentOpenBookId) setAuthGuide(true);
+  }
+}
+webview.addEventListener('did-navigate', (e) => {
+  maybeDetectLogout(e.url);
+  if (awaitingLogin) refreshShelf();
+});
+webview.addEventListener('did-navigate-in-page', (e) => {
+  maybeDetectLogout(e.url);
+  if (awaitingLogin) refreshShelf();
+});
 webview.addEventListener('dom-ready', () => {
   domReady = true;
   applyFont(); // 整页跳转后缩放会丢失，重新应用
@@ -884,16 +886,188 @@ webview.addEventListener('dom-ready', () => {
 
 // 启动：有缓存则秒开书架（无需 loading）；无缓存则盖不透明 loading，
 // 等 dom-ready→refreshShelf 决定（书架 or 未登录登录页）。官方网页书架全程不露出。
+// ---- 首次连接向导：Cookie(书架) + API Key(统计) ----
+const authGuideEl = document.getElementById('authGuide');
+const agStepCookie = document.getElementById('agStepCookie');
+const agStepKey = document.getElementById('agStepKey');
+const agCookieStatus = document.getElementById('agCookieStatus');
+const agKeyStatus = document.getElementById('agKeyStatus');
+const agCookieOk = document.getElementById('agCookieOk');
+const agKeyOk = document.getElementById('agKeyOk');
+const agKeyInput = document.getElementById('agKeyInput');
+const connShelfEl = document.getElementById('connShelf');
+const connStatsEl = document.getElementById('connStats');
+const WEREAD_SKILLS_URL = 'https://weread.qq.com/r/weread-skills';
+
+let authGuideVisible = false;
+let keyScrapeTimer = null;
+
+function setAuthGuide(on) {
+  authGuideVisible = !!on;
+  if (authGuideEl) authGuideEl.classList.toggle('show', !!on);
+  if (on) {
+    shelfEl.classList.remove('show');
+    statsEl.classList.remove('show');
+    setNavActive('shelf');
+  }
+}
+
+function refreshConnStatus() {
+  // 未知时若已有书架缓存，乐观显示已连接，避免刷新过程灰→绿闪烁；
+  // 在线检测有结果后以 shelfLiveOk 为准（退出登录会变 false）
+  const hasShelf = shelfLiveOk === true || (shelfLiveOk == null && !!(currentVM && currentVM.bookCount != null));
+  let hasKey = false;
+  (async () => {
+    try {
+      const a = await window.wereadPC.readAuth();
+      hasKey = !!(a && ((a.manualKey || '').trim() || (a.autoKey || '').trim()));
+    } catch (_) {}
+    if (connShelfEl) {
+      connShelfEl.classList.toggle('ok', hasShelf);
+      const btn = connShelfEl.querySelector('button');
+      if (btn) btn.style.display = hasShelf ? 'none' : '';
+    }
+    if (connStatsEl) {
+      connStatsEl.classList.toggle('ok', hasKey);
+      const btn = connStatsEl.querySelector('button');
+      if (btn) btn.style.display = hasKey ? 'none' : '';
+    }
+    if (agCookieOk) agCookieOk.style.display = hasShelf ? '' : 'none';
+    if (agKeyOk) agKeyOk.style.display = hasKey ? '' : 'none';
+    if (agStepCookie) agStepCookie.classList.toggle('done', hasShelf);
+    if (agStepKey) agStepKey.classList.toggle('done', hasKey);
+    if (agCookieStatus) {
+      agCookieStatus.textContent = hasShelf ? '书架已连接' : '未检测到登录';
+      agCookieStatus.classList.toggle('ok', hasShelf);
+    }
+    if (agKeyStatus && !agKeyStatus.dataset.manual) {
+      agKeyStatus.textContent = hasKey ? 'API Key 已就绪' : '未配置 API Key';
+      agKeyStatus.classList.toggle('ok', hasKey);
+    }
+  })();
+}
+
+// 授权页出现 wrk- 时自动抓取
+function startKeyScrape() {
+  if (keyScrapeTimer) return;
+  keyScrapeTimer = setInterval(async () => {
+    try {
+      const k = await webview.executeJavaScript(
+        "(function(){var t=(document.body&&document.body.innerText)||'';" +
+        "var m=t.match(/wrk-[A-Za-z0-9_-]{8,}/);return m?m[0]:'';})()"
+      );
+      if (k && /^wrk-/.test(k)) {
+        stopKeyScrape();
+        const auth = (await window.wereadPC.readAuth()) || {};
+        auth.manualKey = k;
+        await window.wereadPC.writeAuth(auth);
+        if (agKeyInput) agKeyInput.value = '';
+        if (agKeyStatus) {
+          agKeyStatus.dataset.manual = '';
+          agKeyStatus.textContent = '已自动识别并保存 API Key';
+          agKeyStatus.classList.add('ok');
+        }
+        refreshConnStatus();
+        if (libTab === 'stats') loadStats();
+      }
+    } catch (_) {}
+  }, 1500);
+}
+function stopKeyScrape() {
+  if (keyScrapeTimer) { clearInterval(keyScrapeTimer); keyScrapeTimer = null; }
+}
+
+function bindAuthGuide() {
+  const goLogin = document.getElementById('agGoLogin');
+  const recheck = document.getElementById('agRecheckCookie');
+  const goSkills = document.getElementById('agGoSkills');
+  const saveKey = document.getElementById('agSaveKey');
+  const skip = document.getElementById('agSkip');
+  if (goLogin) goLogin.addEventListener('click', () => {
+    // 露出服务 webview 的微信读书登录/扫码页；成功后由 refreshShelf 收回原生书架
+    awaitingLogin = true;
+    setAuthGuide(false);
+    hideShelf();
+    hideLoading();
+    showOnlyBookWebview(null);
+    // 先落到书架入口；未登录会重定向到扫码页，webview 需停在最上层可见
+    try { webview.loadURL('https://weread.qq.com/web/shelf'); } catch (_) {}
+    setStatus('请在网页中扫码登录微信读书');
+  });
+  if (recheck) recheck.addEventListener('click', async () => {
+    await refreshShelf();
+    refreshConnStatus();
+    if (currentVM && currentVM.bookCount != null) {
+      if (agCookieStatus) agCookieStatus.textContent = '书架已连接';
+      // 登录成功后收回导
+      setTimeout(() => setAuthGuide(false), 600);
+      showShelf();
+    } else if (agCookieStatus) {
+      agCookieStatus.textContent = '仍未检测到登录，请完成扫码';
+    }
+  });
+  if (goSkills) goSkills.addEventListener('click', () => {
+    setAuthGuide(false);
+    hideShelf();
+    showOnlyBookWebview(null);
+    hideLoading();
+    try { webview.loadURL(WEREAD_SKILLS_URL); } catch (_) {}
+    setStatus('请在授权页生成并确认 API Key');
+    startKeyScrape();
+  });
+  if (saveKey) saveKey.addEventListener('click', async () => {
+    const key = (agKeyInput && agKeyInput.value || '').trim();
+    if (!/^wrk-/.test(key)) {
+      if (agKeyStatus) { agKeyStatus.dataset.manual = '1'; agKeyStatus.textContent = 'Key 需以 wrk- 开头'; agKeyStatus.classList.remove('ok'); }
+      return;
+    }
+    const auth = (await window.wereadPC.readAuth()) || {};
+    auth.manualKey = key;
+    await window.wereadPC.writeAuth(auth);
+    if (agKeyInput) agKeyInput.value = '';
+    if (agKeyStatus) {
+      agKeyStatus.dataset.manual = '';
+      agKeyStatus.textContent = 'API Key 已保存';
+      agKeyStatus.classList.add('ok');
+    }
+    refreshConnStatus();
+    if (libTab === 'stats') loadStats();
+  });
+  if (skip) skip.addEventListener('click', () => {
+    setAuthGuide(false);
+    showShelf();
+  });
+  if (connShelfEl) {
+    const b = connShelfEl.querySelector('button');
+    if (b) b.addEventListener('click', () => { setAuthGuide(true); refreshConnStatus(); });
+  }
+  if (connStatsEl) {
+    const b = connStatsEl.querySelector('button');
+    if (b) b.addEventListener('click', () => { setAuthGuide(true); refreshConnStatus(); });
+  }
+}
+
 (async function bootShelfFromCache() {
   if (!window.wereadPC || !window.ShelfView) return;
-  loadOpenBooks();     // 侧栏默认展示本地上次打开的书（不依赖「最近阅读」）
+  loadOpenBooks();
   paintReadSide();
+  bindAuthGuide();
   let cached = null;
   try { cached = await window.wereadPC.readShelfCache(); } catch (_) { cached = null; }
+  let auth = null;
+  try { auth = await window.wereadPC.readAuth(); } catch (_) { auth = null; }
+  const hasKey = !!(auth && ((auth.manualKey || '').trim() || (auth.autoKey || '').trim()));
   if (cached && mode === 'shelf') {
+    shelfLiveOk = null;   // 乐观：先当已连接，在线探测会纠正
     paintShelf(cached);
     showShelf();
+    refreshConnStatus();
   } else {
+    // 首次未登录：进连接向导（书架 Cookie 必须，统计 Key 可选）
     showLoading();
+    setAuthGuide(true);
+    refreshConnStatus();
   }
+  // 有书架但缺 Key：侧栏统计行提示去开通，不强制弹向导
+  if (cached && !hasKey) refreshConnStatus();
 })();
