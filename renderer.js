@@ -248,7 +248,7 @@ function setReaderMode(on) {
 }
 function setFloatTurn(on) { floatTurnEl.classList.toggle('show', !!on); }
 
-// ---- 常驻左侧栏（类微信左右结构）：本地「上次打开的书」，点侧栏只换右侧 ----
+// ---- 常驻左侧栏（类微信左右结构）：本地「书桌」（打开过的书），点侧栏只换右侧 ----
 const readSideListEl = document.getElementById('readSideList');
 let openBooks = [];            // [{ bookId, title, author, cover, vm }]，本地持久化
 let shelfLiveOk = null;        // null=未知/乐观，true=在线已登录，false=在线未登录；不能只看缓存
@@ -315,7 +315,7 @@ function paintReadSide() {
   if (!openBooks.length) {
     const em = document.createElement('div');
     em.className = 'rs-empty';
-    em.textContent = '暂无本地打开记录';
+    em.textContent = '书桌空空如也';
     readSideListEl.appendChild(em);
     return;
   }
@@ -642,16 +642,16 @@ async function loadStats() {
 // ---- 详情侧栏 ----
 const DETAIL_TTL = 7 * 24 * 3600 * 1000;   // 7 天
 let currentDetailBookId = null;   // 当前详情侧栏对应的 bookId，用于异步竞态守卫
-function detailHandlers(vm) {
-  return { onClose: closeDetail, onRead: () => openBook(vm) };
+function detailHandlers(vm, tab) {
+  return { onClose: closeDetail, onRead: () => openBook(vm), initialTab: tab };
 }
-// vm = 书架 book VM（含 bookId/title/cover/deepLink/readerUrl）
-function openDetail(vm) {
+// vm = 书架 book VM（含 bookId/title/cover/deepLink/readerUrl）；tab: 'stats'|'reviews'|undefined
+function openDetail(vm, tab) {
   if (!vm || !vm.bookId) return;
   closeBubble();
   currentDetailBookId = vm.bookId;   // 标记当前请求，供 loadDetail 竞态守卫
   detailEl.classList.add('show');
-  const h = detailHandlers(vm);
+  const h = detailHandlers(vm, tab);
   // 先用书架 VM 画占位（封面/书名立即可见），再后台补详情
   window.DetailView.render(detailEl, window.BookDetailData.buildDetailViewModel({
     ok: false, info: { bookId: vm.bookId, title: vm.title, author: vm.author, cover: vm.cover }
