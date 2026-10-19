@@ -266,6 +266,7 @@ function setFloatTurn(on) { floatTurnEl.classList.toggle('show', !!on); }
 // ---- 常驻左侧栏（类微信左右结构）：本地「上次打开的书」，点侧栏只换右侧 ----
 const readSideListEl = document.getElementById('readSideList');
 let openBooks = [];            // [{ bookId, title, author, cover, vm }]，本地持久化
+let shelfLiveOk = false;       // 在线 shelf/sync 是否成功（真实登录态，非缓存）
 let currentOpenBookId = null;
 
 const OPEN_BOOKS_KEY = 'wereadpc.openBooks';
@@ -573,16 +574,21 @@ function paintShelf(vm, hintErr) {
 // 取数并渲染：先缓存秒开，再后台刷新
 async function refreshShelf() {
   const r = await window.ShelfFetch.loadShelf(webview, window.wereadPC);
+  // 仅在线拉取成功才算「已登录」；缓存只用于展示，不代表登录态（退出后缓存还在）
+  shelfLiveOk = !!r.fresh;
   const vm = r.fresh || r.cached;
   if (vm) {
     paintShelf(vm);
     hideLoading();
-    if (r.err && r.cached) setStatus('刷新失败，展示上次数据');
+    if (!r.fresh && r.cached) setStatus('离线/未登录，展示本地缓存');
     refreshConnStatus();
-    // 登录成功后自动收走向导
-    if (authGuideVisible) {
+    if (shelfLiveOk && authGuideVisible) {
       setAuthGuide(false);
       showShelf();
+    }
+    // 在线失败且本地无感登录 → 拉回向导
+    if (!shelfLiveOk && !r.fresh) {
+      if (!authGuideVisible && !currentOpenBookId) setAuthGuide(true);
     }
     return;
   }
@@ -874,6 +880,16 @@ window.addEventListener('keydown', (e) => {
 });
 
 // ---- webview 生命周期 ----
+function maybeDetectLogout(url) {
+  const u = String(url || '');
+  if (/\/web\/login|passport|login\.qq|scan\/login/i.test(u)) {
+    shelfLiveOk = false;
+    refreshConnStatus();
+    if (!authGuideVisible && !currentOpenBookId) setAuthGuide(true);
+  }
+}
+webview.addEventListener('did-navigate', (e) => maybeDetectLogout(e.url));
+webview.addEventListener('did-navigate-in-page', (e) => maybeDetectLogout(e.url));
 webview.addEventListener('dom-ready', () => {
   domReady = true;
   applyFont(); // 整页跳转后缩放会丢失，重新应用
@@ -919,7 +935,7 @@ function setAuthGuide(on) {
 }
 
 function refreshConnStatus() {
-  const hasShelf = !!(currentVM && currentVM.bookCount != null);
+  const hasShelf = shelfLiveOk;   // 不能只看缓存：退出登录后缓存仍在
   let hasKey = false;
   (async () => {
     try {
