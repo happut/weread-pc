@@ -298,10 +298,20 @@ function paintReadSide() {
       ph.className = 'rs-cover';
       row.appendChild(ph);
     }
+    const meta = document.createElement('div');
+    meta.className = 'rs-meta';
     const t = document.createElement('div');
     t.className = 'rs-title';
     t.textContent = item.title || '未命名';
-    row.appendChild(t);
+    meta.appendChild(t);
+    if (item.author) {
+      const a = document.createElement('div');
+      a.className = 'rs-author';
+      a.textContent = item.author;
+      a.title = item.author;
+      meta.appendChild(a);
+    }
+    row.appendChild(meta);
     const x = document.createElement('button');
     x.className = 'rs-close';
     x.title = '关闭此书';
