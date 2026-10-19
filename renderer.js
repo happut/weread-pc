@@ -6,10 +6,8 @@ const fontMinus = document.getElementById('fontMinus');
 const fontPlus = document.getElementById('fontPlus');
 const intervalInput = document.getElementById('interval');
 const autoToggle = document.getElementById('autoToggle');
-const homeBtn = document.getElementById('homeBtn');
 const rerenderBtn = document.getElementById('rerenderBtn');
 const singlePageBtn = document.getElementById('singlePageBtn');
-const modeBtn = document.getElementById('modeBtn');
 const prevBtn = document.getElementById('prevBtn');
 const nextBtn = document.getElementById('nextBtn');
 const statusEl = document.getElementById('status');
@@ -148,14 +146,7 @@ const MODE_CLICK_JS = `
 `;
 
 // 读阅读页当前模式控件文案，镜像到外壳按钮；找不到则回落到"模式"
-async function refreshModeLabel() {
-  let label = null;
-  try { label = await activeWv().executeJavaScript(MODE_FIND_JS); } catch (_) { label = null; }
-  modeBtn.textContent = label || '模式';
-  modeBtn.title = label
-    ? '当前阅读页模式控件：' + label + '（点击切换）'
-    : '切换阅读页的 上下滚动 / 翻页 模式（需在阅读页内）';
-}
+async function refreshModeLabel() { /* 模式按钮已移除 */ }
 
 // 临时探针：dump 阅读页模式相关 DOM 候选到 .userdata/modeprobe.json，用于定位真实选择器
 // 注意：模式控件常在阅读器自带设置弹层里，弹层没开时节点可能 display:none，
@@ -216,13 +207,7 @@ const MODE_PROBE_JS = `
   return JSON.stringify(out);
 })();
 `;
-async function dumpModeProbe() {
-  if (!window.wereadPC || !window.wereadPC.writeProbe) return;
-  try {
-    const dump = await activeWv().executeJavaScript(MODE_PROBE_JS);
-    await window.wereadPC.writeProbe(dump);
-  } catch (_) {}
-}
+async function dumpModeProbe() { /* 调试探针已随模式按钮移除 */ }
 
 function clampZoom(z) {
   return Math.round(Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, z)) * 100) / 100;
@@ -836,23 +821,6 @@ async function locateModeControl() {
   }
   return null;
 }
-modeBtn.addEventListener('click', async () => {
-  await dumpModeProbe();               // 临时探针：先 dump 当前阅读页 DOM（弹层开着也一并抓）
-  const hit = await locateModeControl();
-  if (!hit) { setStatus('未找到模式控件'); return; }
-  // 合成 .click() 无效，改用主进程向 guest 注入真实鼠标事件（isTrusted），指向当前 book webview
-  let ok = false;
-  if (window.wereadPC && window.wereadPC.clickGuest) {
-    try { ok = await window.wereadPC.clickGuest(activeGuestId(), hit.x, hit.y); } catch (_) { ok = false; }
-  }
-  setStatus(ok ? '已切换模式' : '点击失败');
-  setTimeout(refreshModeLabel, 700);   // 等阅读页重排后回读新状态
-});
-homeBtn.addEventListener('click', () => {
-  closeDetail();
-  showShelf();
-  refreshShelf();
-});
 navShelfBtn.addEventListener('click', () => {
   closeDetail();
   showShelf();

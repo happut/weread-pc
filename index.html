@@ -35,8 +35,12 @@
       border-bottom: 1px solid var(--bar-border);
       -webkit-user-select: none;
       user-select: none;
+      -webkit-app-region: drag;
     }
+    #bar button, #bar input, #bar .segmented, #bar .group { -webkit-app-region: no-drag; }
     body.reader-mode #bar { display: flex; }
+    #bar .hint { font-size: 11px; }
+    #bar .sep { height: 16px; }
     .group { display: flex; align-items: center; gap: 8px; }
     .sep { width: 1px; height: 22px; background: var(--bar-border); }
     .hint { font-size: 12px; color: var(--text-dim); }
@@ -47,28 +51,26 @@
       align-items: center;
       justify-content: center;
       gap: 5px;
-      height: 32px;
-      padding: 0 12px;
-      white-space: nowrap;   /* 防止状态栏长文案把按钮挤成两行“乱码” */
+      height: 30px;
+      padding: 0 11px;
+      white-space: nowrap;
       flex-shrink: 0;
-      border: 1px solid var(--bar-border);
-      border-radius: var(--radius);
-      background: #fff;
+      border: 1px solid transparent;
+      border-radius: 8px;
+      background: #f0f1f4;
       color: var(--text);
-      font-size: 13px;
+      font-size: 12.5px;
       font-family: inherit;
       cursor: pointer;
       transition: background .12s, border-color .12s, color .12s, box-shadow .12s;
-      box-shadow: 0 1px 1px rgba(16, 18, 24, .04);
     }
-    button:hover { background: var(--hover); border-color: #d3d6dd; }
-    button:active { background: #e8eaee; box-shadow: none; }
+    button:hover { background: #e6e8ee; border-color: transparent; }
+    button:active { background: #dfe3ea; box-shadow: none; }
     button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
     button.primary {
       background: var(--accent);
       border-color: var(--accent);
       color: #fff;
-      box-shadow: 0 1px 2px rgba(47, 125, 225, .25);
     }
     button.primary:hover { background: #2a6fc8; border-color: #2a6fc8; }
     button.primary:active { background: #2560af; }
@@ -143,10 +145,13 @@
       -webkit-user-select: none; user-select: none;
     }
     .rs-head {
-      height: 52px; flex: none; display: flex; align-items: center; gap: 4px; padding: 0 8px;
+      height: 52px; flex: none; display: flex; align-items: center; gap: 4px;
+      padding: 0 8px 0 76px;
       font-size: 13px; font-weight: 600; color: var(--text-dim); letter-spacing: .5px;
       border-bottom: 1px solid var(--bar-border);
+      -webkit-app-region: drag;
     }
+    .rs-head .rs-collapse, .rs-head .rs-title-text { -webkit-app-region: no-drag; }
     .rs-head .rs-title-text {
       flex: 1; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis;
       padding-left: 4px;
@@ -520,12 +525,10 @@
 
     <div class="spacer" data-page-node-id="OkNw7Snaq0OAqS9X2iPUWh"></div>
 
-    <div class="group" data-page-node-id="A9RBFyyNJqrDmMsuRbYRuK">
-      <span id="status" data-page-node-id="fNZCPg4bkIYVccz7xwMOfc"></span>
-      <button id="modeBtn" title="切换阅读页的 上下滚动 / 翻页 模式（点击阅读页内的模式控件）">模式</button>
-      <button id="singlePageBtn" title="把窗口调到单页宽度（约 1000px），自动消除双页中缝">单页</button>
-      <button id="rerenderBtn" title="跨屏拖动后正文错位时，点此强制重新排版">重绘</button>
-      <button id="homeBtn" title="回到书架" data-page-node-id="blnZgrH209lrlSFGXFEvpg">书架</button>
+    <div class="group">
+      <span id="status"></span>
+      <button id="singlePageBtn" class="ghost" title="把窗口调到单页宽度（约 1000px），自动消除双页中缝">单页</button>
+      <button id="rerenderBtn" class="ghost icon-only" title="跨屏拖动后正文错位时，点此强制重新排版">⟳</button>
     </div>
   </div>
   <div id="wrap" data-page-node-id="ZsOtHB5CM0U8vtMH9SotTI">
