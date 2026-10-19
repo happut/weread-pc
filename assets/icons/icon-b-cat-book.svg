@@ -56,28 +56,28 @@
 
     <!-- cat body nestled in the book (American Shorthair silver tabby) -->
     <!-- body -->
-    <ellipse cx="512" cy="520" rx="175" ry="130" fill="#C5CBD3"/>
+    <ellipse cx="512" cy="520" rx="175" ry="130" fill="#6D5848"/>
     <!-- classic tabby swirls on body -->
-    <g fill="none" stroke="#5F6875" stroke-width="16" stroke-linecap="round" opacity="0.9">
+    <g fill="none" stroke="#1A1410" stroke-width="16" stroke-linecap="round" opacity="0.9">
       <path d="M390 500 Q430 470 470 505"/>
       <path d="M420 555 Q470 525 520 560"/>
       <path d="M560 500 Q610 475 650 515"/>
       <path d="M530 555 Q590 530 640 570"/>
     </g>
     <!-- head -->
-    <circle cx="512" cy="400" r="148" fill="#C5CBD3"/>
+    <circle cx="512" cy="400" r="148" fill="#6D5848"/>
 
     <!-- ears -->
-    <path d="M395 310 L370 195 L475 265 Z" fill="#C5CBD3"/>
-    <path d="M629 310 L654 195 L549 265 Z" fill="#B8BFC8"/>
-    <path d="M405 295 L390 225 L455 268 Z" fill="#E8B4B8"/>
-    <path d="M619 295 L634 225 L569 268 Z" fill="#E8B4B8"/>
+    <path d="M395 310 L370 195 L475 265 Z" fill="#6D5848"/>
+    <path d="M629 310 L654 195 L549 265 Z" fill="#5E4A3C"/>
+    <path d="M405 295 L390 225 L455 268 Z" fill="#E0A8A8"/>
+    <path d="M619 295 L634 225 L569 268 Z" fill="#E0A8A8"/>
     <!-- ear tip darkening (silver tabby) -->
-    <path d="M370 195 L400 230 L475 265 L395 310 Z" fill="#8A929E" opacity="0.35"/>
-    <path d="M654 195 L624 230 L549 265 L629 310 Z" fill="#8A929E" opacity="0.35"/>
+    <path d="M370 195 L400 230 L475 265 L395 310 Z" fill="#3D2F26" opacity="0.35"/>
+    <path d="M654 195 L624 230 L549 265 L629 310 Z" fill="#3D2F26" opacity="0.35"/>
 
     <!-- forehead M mark + cheek stripes (classic tabby) -->
-    <g fill="none" stroke="#5F6875" stroke-width="13" stroke-linecap="round" stroke-linejoin="round">
+    <g fill="none" stroke="#1A1410" stroke-width="13" stroke-linecap="round" stroke-linejoin="round">
       <!-- M -->
       <path d="M455 320 L480 275 L512 315 L544 275 L569 320"/>
       <!-- outer eye stripes -->
@@ -92,7 +92,7 @@
     <path d="M544 400 Q569 385 594 400" fill="none" stroke="#3D3D3D" stroke-width="12" stroke-linecap="round"/>
 
     <!-- muzzle (lighter silver) -->
-    <ellipse cx="512" cy="455" rx="50" ry="36" fill="#E6EAEE"/>
+    <ellipse cx="512" cy="455" rx="50" ry="36" fill="#C4A882"/>
     <!-- nose (brick red, silver tabby) -->
     <path d="M512 432 L528 448 L496 448 Z" fill="#C45C48"/>
     <!-- mouth -->
@@ -108,16 +108,16 @@
     </g>
 
     <!-- front paws over the page edge -->
-    <ellipse cx="420" cy="575" rx="52" ry="36" fill="#C5CBD3"/>
-    <ellipse cx="604" cy="575" rx="52" ry="36" fill="#B8BFC8"/>
+    <ellipse cx="420" cy="575" rx="52" ry="36" fill="#6D5848"/>
+    <ellipse cx="604" cy="575" rx="52" ry="36" fill="#5E4A3C"/>
     <!-- paw stripes + toe beans hint -->
-    <g fill="none" stroke="#5F6875" stroke-width="10" stroke-linecap="round" opacity="0.85">
+    <g fill="none" stroke="#1A1410" stroke-width="10" stroke-linecap="round" opacity="0.85">
       <path d="M395 560 L405 545"/>
       <path d="M445 560 L435 545"/>
       <path d="M579 560 L589 545"/>
       <path d="M629 560 L619 545"/>
     </g>
-    <g fill="#E8B4B8" opacity="0.9">
+    <g fill="#E0A8A8" opacity="0.9">
       <ellipse cx="405" cy="575" rx="10" ry="8"/>
       <ellipse cx="425" cy="568" rx="10" ry="8"/>
       <ellipse cx="445" cy="575" rx="10" ry="8"/>
