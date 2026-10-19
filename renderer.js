@@ -375,7 +375,8 @@ function paintReadSide() {
     });
     row.appendChild(x);
     row.addEventListener('click', () => {
-      if (id === currentOpenBookId) return;
+      // 仅在已在读这本书时忽略；从书架/统计点回同一本也要切右侧进阅读
+      if (id === currentOpenBookId && mode === 'reader') return;
       openBook(item.vm);
     });
     readSideListEl.appendChild(row);
