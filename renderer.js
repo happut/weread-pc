@@ -233,10 +233,99 @@ function setLibraryMode(on) {
   document.body.classList.toggle('library-mode', !!on);
 }
 function setFloatTurn(on) { floatTurnEl.classList.toggle('show', !!on); }
+
+// ---- 阅读左侧「在读」侧栏（首页保持独立：library-mode 不显示）----
+const readSideListEl = document.getElementById('readSideList');
+const readSideHomeBtn = document.getElementById('readSideHome');
+let openBooks = [];            // [{ bookId, title, author, cover, vm }]，最近打开在前
+let currentOpenBookId = null;
+
+function setReadSide(on) { document.body.classList.toggle('read-side-on', !!on); }
+
+function paintReadSide() {
+  if (!readSideListEl) return;
+  readSideListEl.textContent = '';
+  if (!openBooks.length) {
+    const em = document.createElement('div');
+    em.className = 'rs-empty';
+    em.textContent = '暂无在读书籍';
+    readSideListEl.appendChild(em);
+    return;
+  }
+  for (const item of openBooks) {
+    const row = document.createElement('div');
+    row.className = 'rs-item' + (item.bookId === currentOpenBookId ? ' current' : '');
+    row.title = item.title + (item.author ? ' · ' + item.author : '');
+    if (item.cover) {
+      const img = document.createElement('img');
+      img.className = 'rs-cover';
+      img.src = item.cover;
+      img.alt = '';
+      img.referrerPolicy = 'no-referrer';
+      row.appendChild(img);
+    } else {
+      const ph = document.createElement('div');
+      ph.className = 'rs-cover';
+      row.appendChild(ph);
+    }
+    const t = document.createElement('div');
+    t.className = 'rs-title';
+    t.textContent = item.title || '未命名';
+    row.appendChild(t);
+    const x = document.createElement('button');
+    x.className = 'rs-close';
+    x.title = '关闭此书';
+    x.textContent = '✕';
+    x.addEventListener('click', (e) => {
+      e.stopPropagation();
+      closeOpenBook(item.bookId);
+    });
+    row.appendChild(x);
+    row.addEventListener('click', () => {
+      if (item.bookId === currentOpenBookId) return;
+      openBook(item.vm);
+    });
+    readSideListEl.appendChild(row);
+  }
+}
+
+function rememberOpenBook(vm) {
+  if (!vm || !vm.bookId) return;
+  const id = String(vm.bookId);
+  const item = {
+    bookId: id,
+    title: vm.title || '',
+    author: vm.author || '',
+    cover: vm.cover || '',
+    vm: { bookId: vm.bookId, title: vm.title, author: vm.author, cover: vm.cover,
+          deepLink: vm.deepLink, readerUrl: vm.readerUrl }
+  };
+  openBooks = [item, ...openBooks.filter(x => x.bookId !== id)];
+  currentOpenBookId = id;
+  paintReadSide();
+}
+
+// 关闭某本在读书：若关的是当前，切到下一本或回首页（首页保持独立，不塞进侧栏）
+function closeOpenBook(bookId) {
+  const id = String(bookId);
+  const wasCurrent = id === currentOpenBookId;
+  openBooks = openBooks.filter(x => x.bookId !== id);
+  if (!wasCurrent) { paintReadSide(); return; }
+  currentOpenBookId = null;
+  if (openBooks.length) {
+    openBook(openBooks[0].vm);
+  } else {
+    showShelf();
+    refreshShelf();
+    paintReadSide();
+  }
+}
+
 function showShelf() {
   mode = 'shelf'; libTab = 'shelf';
   setLibraryMode(true);
   setFloatTurn(false);
+  setReadSide(false);          // 首页保持独立，隐藏阅读侧栏
   shelfEl.classList.add('show');
   statsEl.classList.remove('show');
   tabShelf.classList.add('active'); tabStats.classList.remove('active');
@@ -245,6 +334,7 @@ function showStats() {
   mode = 'shelf'; libTab = 'stats';
   setLibraryMode(true);
   setFloatTurn(false);
+  setReadSide(false);          // 首页/统计同属书库层，不显示阅读侧栏
   shelfEl.classList.remove('show');
   statsEl.classList.add('show');
   tabStats.classList.add('active'); tabShelf.classList.remove('active');
@@ -255,6 +345,7 @@ function hideShelf() {          // 进阅读：撤下整个书库层（含顶栏
   setLibraryMode(false);
   shelfEl.classList.remove('show');
   statsEl.classList.remove('show');
+  setReadSide(true);           // 阅读视图露出「在读」侧栏
 }
 
 // ---- 全屏 loading（不透明盖住 webview，官方网页界面永不露出）----
@@ -286,6 +377,7 @@ function revealReader() {
 function openBook(vm) {
   closeDetail();
   closeBubble();
+  rememberOpenBook(vm);
   const url = window.ShelfView.readerUrlFor(vm);
   // 盖不透明 loading 后再导航；等 reader 正文 canvas 就绪才撤，全程不露官方网页书架
   pendingOpen = true;
@@ -580,6 +672,11 @@ homeBtn.addEventListener('click', () => {
   closeDetail();   // Task 10 定义
   showShelf();
   refreshShelf();  // 返回书架时后台刷新进度
+});
+readSideHomeBtn.addEventListener('click', () => {
+  closeDetail();
+  showShelf();
+  refreshShelf();
 });
 tabShelf.addEventListener('click', () => { if (mode === 'shelf') showShelf(); });
 tabStats.addEventListener('click', () => { if (mode === 'shelf') showStats(); });
