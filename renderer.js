@@ -438,6 +438,8 @@ function showShelf() {
   setReaderMode(false);
   setFloatTurn(false);
   showOnlyBookWebview(null);   // 露出服务 webview；book webview 保活但隐藏
+  if (authGuideEl) authGuideEl.classList.remove('show');
+  authGuideVisible = false;
   shelfEl.classList.add('show');
   statsEl.classList.remove('show');
   setNavActive('shelf');
@@ -576,6 +578,12 @@ async function refreshShelf() {
     paintShelf(vm);
     hideLoading();
     if (r.err && r.cached) setStatus('刷新失败，展示上次数据');
+    refreshConnStatus();
+    // 登录成功后自动收走向导
+    if (authGuideVisible) {
+      setAuthGuide(false);
+      showShelf();
+    }
     return;
   }
   // 无数据（多半未登录）：仅当还停在书架页时才让位给 webview 登录页
@@ -884,16 +892,183 @@ webview.addEventListener('dom-ready', () => {
 
 // 启动：有缓存则秒开书架（无需 loading）；无缓存则盖不透明 loading，
 // 等 dom-ready→refreshShelf 决定（书架 or 未登录登录页）。官方网页书架全程不露出。
+// ---- 首次连接向导：Cookie(书架) + API Key(统计) ----
+const authGuideEl = document.getElementById('authGuide');
+const agStepCookie = document.getElementById('agStepCookie');
+const agStepKey = document.getElementById('agStepKey');
+const agCookieStatus = document.getElementById('agCookieStatus');
+const agKeyStatus = document.getElementById('agKeyStatus');
+const agCookieOk = document.getElementById('agCookieOk');
+const agKeyOk = document.getElementById('agKeyOk');
+const agKeyInput = document.getElementById('agKeyInput');
+const connShelfEl = document.getElementById('connShelf');
+const connStatsEl = document.getElementById('connStats');
+const WEREAD_SKILLS_URL = 'https://weread.qq.com/r/weread-skills';
+
+let authGuideVisible = false;
+let keyScrapeTimer = null;
+
+function setAuthGuide(on) {
+  authGuideVisible = !!on;
+  if (authGuideEl) authGuideEl.classList.toggle('show', !!on);
+  if (on) {
+    shelfEl.classList.remove('show');
+    statsEl.classList.remove('show');
+    setNavActive('shelf');
+  }
+}
+
+function refreshConnStatus() {
+  const hasShelf = !!(currentVM && currentVM.bookCount != null);
+  let hasKey = false;
+  (async () => {
+    try {
+      const a = await window.wereadPC.readAuth();
+      hasKey = !!(a && ((a.manualKey || '').trim() || (a.autoKey || '').trim()));
+    } catch (_) {}
+    if (connShelfEl) {
+      connShelfEl.classList.toggle('ok', hasShelf);
+      const btn = connShelfEl.querySelector('button');
+      if (btn) btn.style.display = hasShelf ? 'none' : '';
+    }
+    if (connStatsEl) {
+      connStatsEl.classList.toggle('ok', hasKey);
+      const btn = connStatsEl.querySelector('button');
+      if (btn) btn.style.display = hasKey ? 'none' : '';
+    }
+    if (agCookieOk) agCookieOk.style.display = hasShelf ? '' : 'none';
+    if (agKeyOk) agKeyOk.style.display = hasKey ? '' : 'none';
+    if (agStepCookie) agStepCookie.classList.toggle('done', hasShelf);
+    if (agStepKey) agStepKey.classList.toggle('done', hasKey);
+    if (agCookieStatus) {
+      agCookieStatus.textContent = hasShelf ? '书架已连接' : '未检测到登录';
+      agCookieStatus.classList.toggle('ok', hasShelf);
+    }
+    if (agKeyStatus && !agKeyStatus.dataset.manual) {
+      agKeyStatus.textContent = hasKey ? 'API Key 已就绪' : '未配置 API Key';
+      agKeyStatus.classList.toggle('ok', hasKey);
+    }
+  })();
+}
+
+// 授权页出现 wrk- 时自动抓取
+function startKeyScrape() {
+  if (keyScrapeTimer) return;
+  keyScrapeTimer = setInterval(async () => {
+    try {
+      const k = await webview.executeJavaScript(
+        "(function(){var t=(document.body&&document.body.innerText)||'';" +
+        "var m=t.match(/wrk-[A-Za-z0-9_-]{8,}/);return m?m[0]:'';})()"
+      );
+      if (k && /^wrk-/.test(k)) {
+        stopKeyScrape();
+        const auth = (await window.wereadPC.readAuth()) || {};
+        auth.manualKey = k;
+        await window.wereadPC.writeAuth(auth);
+        if (agKeyInput) agKeyInput.value = '';
+        if (agKeyStatus) {
+          agKeyStatus.dataset.manual = '';
+          agKeyStatus.textContent = '已自动识别并保存 API Key';
+          agKeyStatus.classList.add('ok');
+        }
+        refreshConnStatus();
+        if (libTab === 'stats') loadStats();
+      }
+    } catch (_) {}
+  }, 1500);
+}
+function stopKeyScrape() {
+  if (keyScrapeTimer) { clearInterval(keyScrapeTimer); keyScrapeTimer = null; }
+}
+
+function bindAuthGuide() {
+  const goLogin = document.getElementById('agGoLogin');
+  const recheck = document.getElementById('agRecheckCookie');
+  const goSkills = document.getElementById('agGoSkills');
+  const saveKey = document.getElementById('agSaveKey');
+  const skip = document.getElementById('agSkip');
+  if (goLogin) goLogin.addEventListener('click', () => {
+    // 露出服务 webview 的微信读书登录页
+    setAuthGuide(false);
+    hideShelf();
+    showOnlyBookWebview(null);
+    hideLoading();
+    try { webview.loadURL('https://weread.qq.com/web/shelf'); } catch (_) {}
+    setStatus('请扫码登录微信读书');
+  });
+  if (recheck) recheck.addEventListener('click', async () => {
+    await refreshShelf();
+    refreshConnStatus();
+    if (currentVM && currentVM.bookCount != null) {
+      if (agCookieStatus) agCookieStatus.textContent = '书架已连接';
+      // 登录成功后收回导
+      setTimeout(() => setAuthGuide(false), 600);
+      showShelf();
+    } else if (agCookieStatus) {
+      agCookieStatus.textContent = '仍未检测到登录，请完成扫码';
+    }
+  });
+  if (goSkills) goSkills.addEventListener('click', () => {
+    setAuthGuide(false);
+    hideShelf();
+    showOnlyBookWebview(null);
+    hideLoading();
+    try { webview.loadURL(WEREAD_SKILLS_URL); } catch (_) {}
+    setStatus('请在授权页生成并确认 API Key');
+    startKeyScrape();
+  });
+  if (saveKey) saveKey.addEventListener('click', async () => {
+    const key = (agKeyInput && agKeyInput.value || '').trim();
+    if (!/^wrk-/.test(key)) {
+      if (agKeyStatus) { agKeyStatus.dataset.manual = '1'; agKeyStatus.textContent = 'Key 需以 wrk- 开头'; agKeyStatus.classList.remove('ok'); }
+      return;
+    }
+    const auth = (await window.wereadPC.readAuth()) || {};
+    auth.manualKey = key;
+    await window.wereadPC.writeAuth(auth);
+    if (agKeyInput) agKeyInput.value = '';
+    if (agKeyStatus) {
+      agKeyStatus.dataset.manual = '';
+      agKeyStatus.textContent = 'API Key 已保存';
+      agKeyStatus.classList.add('ok');
+    }
+    refreshConnStatus();
+    if (libTab === 'stats') loadStats();
+  });
+  if (skip) skip.addEventListener('click', () => {
+    setAuthGuide(false);
+    showShelf();
+  });
+  if (connShelfEl) {
+    const b = connShelfEl.querySelector('button');
+    if (b) b.addEventListener('click', () => { setAuthGuide(true); refreshConnStatus(); });
+  }
+  if (connStatsEl) {
+    const b = connStatsEl.querySelector('button');
+    if (b) b.addEventListener('click', () => { setAuthGuide(true); refreshConnStatus(); });
+  }
+}
+
 (async function bootShelfFromCache() {
   if (!window.wereadPC || !window.ShelfView) return;
-  loadOpenBooks();     // 侧栏默认展示本地上次打开的书（不依赖「最近阅读」）
+  loadOpenBooks();
   paintReadSide();
+  bindAuthGuide();
   let cached = null;
   try { cached = await window.wereadPC.readShelfCache(); } catch (_) { cached = null; }
+  let auth = null;
+  try { auth = await window.wereadPC.readAuth(); } catch (_) { auth = null; }
+  const hasKey = !!(auth && ((auth.manualKey || '').trim() || (auth.autoKey || '').trim()));
   if (cached && mode === 'shelf') {
     paintShelf(cached);
     showShelf();
+    refreshConnStatus();
   } else {
+    // 首次未登录：进连接向导（书架 Cookie 必须，统计 Key 可选）
     showLoading();
+    setAuthGuide(true);
+    refreshConnStatus();
   }
+  // 有书架但缺 Key：侧栏统计行提示去开通，不强制弹向导
+  if (cached && !hasKey) refreshConnStatus();
 })();

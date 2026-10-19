@@ -223,6 +223,53 @@
     .side-nav button.active { background: var(--accent-soft); color: var(--accent); font-weight: 600; }
     .side-nav button .nav-ico { width: 18px; text-align: center; font-size: 15px; flex: none; }
 
+    /* ===== 首次连接向导（token + cookie 两步）===== */
+    #authGuide {
+      position: fixed; top: 0; left: var(--side-w); right: 0; bottom: 0; z-index: 11;
+      display: none; overflow-y: auto;
+      background: #fafbfc; color: var(--text); padding: 28px 32px 40px;
+    }
+    #authGuide.show { display: block; }
+    .ag-title { font-size: 18px; font-weight: 700; margin-bottom: 6px; }
+    .ag-sub { font-size: 13px; color: var(--text-dim); margin-bottom: 20px; line-height: 1.6; }
+    .ag-step {
+      background: #fff; border: 1px solid var(--bar-border); border-radius: 12px;
+      padding: 16px 18px; margin-bottom: 14px; max-width: 560px;
+    }
+    .ag-step.done { border-color: #b7e4c7; background: #f6fcf8; }
+    .ag-step-h { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+    .ag-step-h .t { font-size: 15px; font-weight: 600; }
+    .ag-tag {
+      font-size: 11px; padding: 2px 8px; border-radius: 10px; font-weight: 600;
+    }
+    .ag-tag.must { background: #e8f1fd; color: var(--accent); }
+    .ag-tag.opt { background: #f3f0ff; color: #7a5af5; }
+    .ag-tag.ok { background: #eafaf1; color: #1f9254; }
+    .ag-desc { font-size: 13px; color: #4a4f5a; line-height: 1.7; margin-bottom: 12px; }
+    .ag-row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+    .ag-row input[type=text] {
+      flex: 1; min-width: 200px; height: 32px; padding: 0 10px;
+      border: 1px solid var(--bar-border); border-radius: 6px; font-size: 12px;
+      font-family: ui-monospace, Menlo, monospace;
+    }
+    .ag-status { font-size: 12px; color: var(--text-dim); margin-top: 8px; }
+    .ag-status.ok { color: #1f9254; }
+
+    /* 侧栏底部连接状态 */
+    .conn-line {
+      display: flex; align-items: center; gap: 6px;
+      font-size: 11px; color: var(--text-dim); padding: 2px 12px;
+    }
+    .conn-line .dot {
+      width: 7px; height: 7px; border-radius: 50%; background: #c5cad3; flex: none;
+    }
+    .conn-line.ok .dot { background: #239a3b; }
+    .conn-line.ok { color: #1f9254; }
+    .conn-line button {
+      margin-left: auto; border: none; background: transparent; box-shadow: none;
+      color: var(--accent); font-size: 11px; padding: 0; height: auto; cursor: pointer;
+    }
+
     /* ===== 原生书架覆盖层（方向2 清爽网格）===== */
     #shelf {
       position: fixed; top: 0; left: var(--side-w); right: 0; bottom: 0; z-index: 10;
@@ -491,6 +538,8 @@
     </div>
     <button class="rs-handle" id="rsHandle" title="折叠/展开侧栏">⟨</button>
     <div class="rs-list" id="readSideList"></div>
+    <div class="conn-line" id="connShelf"><span class="dot"></span><span>书架</span><button type="button" data-act="login">去登录</button></div>
+    <div class="conn-line" id="connStats"><span class="dot"></span><span>统计</span><button type="button" data-act="key">去开通</button></div>
     <nav class="side-nav">
       <button id="navShelf" class="active" title="书架"><span class="nav-ico">📚</span><span class="nav-label">书架</span></button>
       <button id="navStats" title="我的 · 阅读统计"><span class="nav-ico">👤</span><span class="nav-label">我的</span></button>
@@ -498,6 +547,32 @@
     </nav>
   </aside>
   <div id="shelf"></div>
+  <div id="authGuide" aria-label="连接向导">
+    <div class="ag-title">连接微信读书</div>
+    <div class="ag-sub">首次使用需要两步：登录书架（必须），开通统计 API（可选）。完成后本向导会自动消失。</div>
+    <div class="ag-step" id="agStepCookie">
+      <div class="ag-step-h"><span class="t">1. 登录微信读书</span><span class="ag-tag must">必须</span><span class="ag-tag ok" id="agCookieOk" style="display:none">已连接</span></div>
+      <div class="ag-desc">使用微信扫码登录网页版。登录态保存在本地（Cookie），用于同步书架与阅读。</div>
+      <div class="ag-row">
+        <button id="agGoLogin" class="primary">去登录</button>
+        <button id="agRecheckCookie">我已登录，刷新</button>
+      </div>
+      <div class="ag-status" id="agCookieStatus">未检测到登录</div>
+    </div>
+    <div class="ag-step" id="agStepKey">
+      <div class="ag-step-h"><span class="t">2. 开通统计 API</span><span class="ag-tag opt">可选</span><span class="ag-tag ok" id="agKeyOk" style="display:none">已连接</span></div>
+      <div class="ag-desc">访问微信读书官方授权页生成 API Key（wrk- 开头），统计看板依赖它。生成后本页会尝试自动识别，也可手动粘贴。</div>
+      <div class="ag-row">
+        <button id="agGoSkills">打开授权页</button>
+        <input type="text" id="agKeyInput" placeholder="wrk-…" autocomplete="off" spellcheck="false" />
+        <button id="agSaveKey">保存</button>
+      </div>
+      <div class="ag-status" id="agKeyStatus">未配置 API Key</div>
+    </div>
+    <div class="ag-row" style="margin-top: 8px">
+      <button id="agSkip">稍后再说</button>
+    </div>
+  </div>
   <div id="loading">
     <div class="book">
       <div class="half l"></div>
