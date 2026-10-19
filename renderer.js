@@ -287,6 +287,26 @@ function saveOpenBooks() {
   try { localStorage.setItem(OPEN_BOOKS_KEY, JSON.stringify(openBooks)); } catch (_) {}
 }
 
+// 侧栏折叠：导航收成图标，书收成封面小图
+const SIDEBAR_COLLAPSED_KEY = 'wereadpc.sideCollapsed';
+const rsCollapseBtn = document.getElementById('rsCollapse');
+function setSideCollapsed(on) {
+  document.body.classList.toggle('side-collapsed', !!on);
+  if (rsCollapseBtn) {
+    rsCollapseBtn.textContent = on ? '⟩' : '⟨';
+    rsCollapseBtn.title = on ? '展开侧栏' : '折叠侧栏';
+  }
+  try { localStorage.setItem(SIDEBAR_COLLAPSED_KEY, on ? '1' : '0'); } catch (_) {}
+}
+if (rsCollapseBtn) {
+  rsCollapseBtn.addEventListener('click', () => {
+    setSideCollapsed(!document.body.classList.contains('side-collapsed'));
+  });
+}
+try {
+  if (localStorage.getItem(SIDEBAR_COLLAPSED_KEY) === '1') setSideCollapsed(true);
+} catch (_) {}
+
 // 只切高亮，不整表重绘（左栏不重载）
 function updateSidebarHighlight() {
   if (!readSideListEl) return;
@@ -365,18 +385,19 @@ function rememberOpenBook(vm) {
     vm: { bookId: vm.bookId, title: vm.title, author: vm.author, cover: vm.cover,
           deepLink: vm.deepLink, readerUrl: vm.readerUrl }
   };
-  // 顺序固定：新书追加到末尾（只插一行，不整表重绘）；已有书只换高亮
+  // 最近点击置顶：新书/已点都挪到最前，持久化
   const idx = openBooks.findIndex(x => x.bookId === id);
   if (idx === -1) {
-    openBooks.push(item);
+    openBooks.unshift(item);
     saveOpenBooks();
     currentOpenBookId = id;
-    paintReadSide();          // 新书需要出现在列表里
+    paintReadSide();
   } else {
-    openBooks[idx] = item;
+    openBooks.splice(idx, 1);
+    openBooks.unshift(item);
     saveOpenBooks();
     currentOpenBookId = id;
-    updateSidebarHighlight();
+    paintReadSide();   // 顺序变了，需要重排
   }
 }
 

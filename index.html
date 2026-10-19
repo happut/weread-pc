@@ -13,7 +13,9 @@
       --accent-soft: #e8f1fd;
       --hover: #f0f1f4;
       --radius: 8px;
+      --side-w: 200px;
     }
+    body.side-collapsed { --side-w: 60px; }
     * { margin: 0; padding: 0; box-sizing: border-box; }
     html, body { height: 100%; overflow: hidden; }
     body {
@@ -28,7 +30,7 @@
       align-items: center;
       gap: 14px;
       padding: 0 16px;
-      margin-left: 200px;
+      margin-left: var(--side-w);
       background: var(--bar-bg);
       border-bottom: 1px solid var(--bar-border);
       -webkit-user-select: none;
@@ -126,25 +128,35 @@
     #status { font-size: 12px; color: var(--text-dim); font-variant-numeric: tabular-nums; }
     #status.on { color: #1f9254; }
 
-    #wrap { display: flex; flex-direction: column; height: 100%; margin-left: 200px; width: calc(100% - 200px); }
+    #wrap { display: flex; flex-direction: column; height: 100%; margin-left: var(--side-w); width: calc(100% - var(--side-w)); }
     body.reader-mode #wrap { height: calc(100% - 52px); }
     webview { flex: 1; width: 100%; }
     /* 每本书独立 webview：隐藏时保留页面状态，切换不重载 */
     webview.book-wv { flex: 1; width: 100%; }
     webview.is-hidden { display: none !important; }
 
-    /* ===== 常驻左侧栏：在读列表 + 左下角 书架/我的 ===== */
+    /* ===== 常驻左侧栏：上次打开 + 左下角 书架/我的/设置（可折叠）===== */
     #readSide {
-      position: fixed; top: 0; left: 0; bottom: 0; width: 200px; z-index: 12;
+      position: fixed; top: 0; left: 0; bottom: 0; width: var(--side-w); z-index: 12;
       display: flex; flex-direction: column;
       background: var(--bar-bg); border-right: 1px solid var(--bar-border);
       -webkit-user-select: none; user-select: none;
+      transition: width .18s ease;
     }
     .rs-head {
-      height: 52px; flex: none; display: flex; align-items: center; padding: 0 12px;
+      height: 52px; flex: none; display: flex; align-items: center; gap: 4px; padding: 0 8px;
       font-size: 13px; font-weight: 600; color: var(--text-dim); letter-spacing: .5px;
       border-bottom: 1px solid var(--bar-border);
     }
+    .rs-head .rs-title-text {
+      flex: 1; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis;
+      padding-left: 4px;
+    }
+    .rs-collapse {
+      flex: none; width: 28px; height: 28px; padding: 0; border: none; border-radius: 6px;
+      background: transparent; box-shadow: none; color: var(--text-dim); cursor: pointer; font-size: 14px;
+    }
+    .rs-collapse:hover { background: var(--hover); color: var(--text); }
     .rs-list { flex: 1; overflow-y: auto; padding: 8px; }
     .rs-item {
       display: flex; align-items: center; gap: 8px; padding: 8px; border-radius: 8px;
@@ -175,9 +187,20 @@
     }
     .rs-item:hover .rs-close { display: block; }
     .rs-item .rs-close:hover { background: #e2554d; color: #fff; }
-    .rs-empty { padding: 24px 12px; text-align: center; font-size: 12px; color: var(--text-dim); }
+    .rs-empty { padding: 24px 8px; text-align: center; font-size: 12px; color: var(--text-dim); }
 
-    /* 左下角导航：书架 / 我的 */
+    /* 折叠态：书只留封面，导航只留图标 */
+    body.side-collapsed .rs-title-text,
+    body.side-collapsed .rs-item .rs-meta,
+    body.side-collapsed .rs-item .rs-close,
+    body.side-collapsed .rs-empty { display: none; }
+    body.side-collapsed .rs-list { padding: 8px 6px; }
+    body.side-collapsed .rs-item { justify-content: center; padding: 6px; }
+    body.side-collapsed .rs-item .rs-cover { width: 36px; height: 48px; }
+    body.side-collapsed .side-nav button { justify-content: center; padding: 0; }
+    body.side-collapsed .side-nav .nav-label { display: none; }
+
+    /* 左下角导航：书架 / 我的 / 设置 */
     .side-nav {
       flex: none; display: flex; flex-direction: column; gap: 4px;
       padding: 10px 8px 12px; border-top: 1px solid var(--bar-border);
@@ -189,11 +212,11 @@
     }
     .side-nav button:hover { background: var(--hover); }
     .side-nav button.active { background: var(--accent-soft); color: var(--accent); font-weight: 600; }
-    .side-nav button .nav-ico { width: 18px; text-align: center; font-size: 15px; }
+    .side-nav button .nav-ico { width: 18px; text-align: center; font-size: 15px; flex: none; }
 
     /* ===== 原生书架覆盖层（方向2 清爽网格）===== */
     #shelf {
-      position: fixed; top: 0; left: 200px; right: 0; bottom: 0; z-index: 10;
+      position: fixed; top: 0; left: var(--side-w); right: 0; bottom: 0; z-index: 10;
       display: none; flex-direction: column;
       background: #fafbfc; color: var(--text);
     }
@@ -202,7 +225,7 @@
 
     /* ===== 全屏 loading 覆盖层（不透明，盖住 webview；翻书动画）===== */
     #loading {
-      position: fixed; top: 0; left: 200px; right: 0; bottom: 0; z-index: 20;
+      position: fixed; top: 0; left: var(--side-w); right: 0; bottom: 0; z-index: 20;
       display: none; flex-direction: column; align-items: center; justify-content: center;
       gap: 22px; background: #fafbfc;
     }
@@ -281,7 +304,7 @@
 
     /* ===== 统计看板 ===== */
     #stats {
-      position: fixed; top: 0; left: 200px; right: 0; bottom: 0; z-index: 10;
+      position: fixed; top: 0; left: var(--side-w); right: 0; bottom: 0; z-index: 10;
       display: none; overflow-y: auto; background: #fafbfc; padding: 18px 22px 40px;
     }
     body.reader-mode #stats { top: 52px; }
@@ -452,12 +475,15 @@
     <webview id="weread" src="https://weread.qq.com/web/shelf" partition="persist:weread" allowpopups="false" data-page-node-id="GYiNRdTz0mMYnG1HhzsmSg"></webview>
   </div>
   <aside id="readSide" aria-label="侧栏">
-    <div class="rs-head">上次打开</div>
+    <div class="rs-head">
+      <button class="rs-collapse" id="rsCollapse" title="折叠/展开侧栏">⟨</button>
+      <span class="rs-title-text">上次打开</span>
+    </div>
     <div class="rs-list" id="readSideList"></div>
     <nav class="side-nav">
-      <button id="navShelf" class="active" title="书架"><span class="nav-ico">📚</span>书架</button>
-      <button id="navStats" title="我的 · 阅读统计"><span class="nav-ico">👤</span>我的</button>
-      <button id="settingsBtn" title="设置"><span class="nav-ico">⚙</span>设置</button>
+      <button id="navShelf" class="active" title="书架"><span class="nav-ico">📚</span><span class="nav-label">书架</span></button>
+      <button id="navStats" title="我的 · 阅读统计"><span class="nav-ico">👤</span><span class="nav-label">我的</span></button>
+      <button id="settingsBtn" title="设置"><span class="nav-ico">⚙</span><span class="nav-label">设置</span></button>
     </nav>
   </aside>
   <div id="shelf"></div>
