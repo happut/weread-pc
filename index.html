@@ -202,10 +202,11 @@
 
     /* ===== 全屏 loading 覆盖层（不透明，盖住 webview；翻书动画）===== */
     #loading {
-      position: fixed; inset: 0; z-index: 20;
+      position: fixed; top: 0; left: 200px; right: 0; bottom: 0; z-index: 20;
       display: none; flex-direction: column; align-items: center; justify-content: center;
       gap: 22px; background: #fafbfc;
     }
+    body.reader-mode #loading { top: 52px; }
     #loading.show { display: flex; }
     .book { position: relative; width: 92px; height: 62px; perspective: 600px; }
     .book .half {

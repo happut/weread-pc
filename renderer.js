@@ -365,13 +365,13 @@ function rememberOpenBook(vm) {
     vm: { bookId: vm.bookId, title: vm.title, author: vm.author, cover: vm.cover,
           deepLink: vm.deepLink, readerUrl: vm.readerUrl }
   };
-  // 顺序固定：只追加新书，已有项保持原位；已有书只换高亮不重绘侧栏
+  // 顺序固定：新书追加到末尾（只插一行，不整表重绘）；已有书只换高亮
   const idx = openBooks.findIndex(x => x.bookId === id);
   if (idx === -1) {
     openBooks.push(item);
     saveOpenBooks();
     currentOpenBookId = id;
-    paintReadSide();
+    paintReadSide();          // 新书需要出现在列表里
   } else {
     openBooks[idx] = item;
     saveOpenBooks();
@@ -449,7 +449,7 @@ function waitReaderReady(cb, timeoutMs, wv) {
   }, 120);
 }
 
-// 正文就绪：先在 loading 遮盖下撤书架层，再撤 loading，露出已渲染好的 reader
+// 正文就绪：撤 loading 露出已渲染好的 reader（侧栏始终不动）
 function revealReader() {
   hideShelf();
   hideLoading();
@@ -480,7 +480,8 @@ function openBook(vm) {
   }
 
   const url = window.ShelfView.readerUrlFor(vm);
-  // 新书：独立 webview 首次加载，盖不透明 loading，等正文 canvas 就绪再露出
+  // 新书：独立 webview 首次加载。右侧立刻切到阅读区（左栏不动），
+  // loading 只盖主区，等正文 canvas 就绪再撤
   const wv = document.createElement('webview');
   wv.className = 'book-wv';
   wv.setAttribute('partition', 'persist:weread');
@@ -490,6 +491,7 @@ function openBook(vm) {
   bookWebviews.set(id, wv);
 
   currentOpenBookId = id;
+  hideShelf();                 // 右侧立即进入阅读布局，避免“整页刷新”错觉
   showOnlyBookWebview(id);
   pendingOpen = true;
   pendingOpenBookId = id;
