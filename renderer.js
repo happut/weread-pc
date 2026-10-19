@@ -298,6 +298,12 @@ function setSideCollapsed(on) {
   if (rsCollapseBtn) { rsCollapseBtn.textContent = arrow; rsCollapseBtn.title = title; }
   if (rsHandleBtn) { rsHandleBtn.textContent = arrow; rsHandleBtn.title = title; }
   try { localStorage.setItem(SIDEBAR_COLLAPSED_KEY, on ? '1' : '0'); } catch (_) {}
+  // 主区 left 随 --side-w 瞬时变化，强制一次重绘，避免合成层残影
+  requestAnimationFrame(() => {
+    shelfEl.style.display = shelfEl.style.display;
+    if (statsEl) statsEl.style.opacity = '0.999';
+    requestAnimationFrame(() => { if (statsEl) statsEl.style.opacity = ''; });
+  });
 }
 function toggleSideCollapsed() {
   setSideCollapsed(!document.body.classList.contains('side-collapsed'));

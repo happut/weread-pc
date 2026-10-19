@@ -141,7 +141,6 @@
       display: flex; flex-direction: column;
       background: var(--bar-bg); border-right: 1px solid var(--bar-border);
       -webkit-user-select: none; user-select: none;
-      transition: width .18s ease;
     }
     .rs-head {
       height: 52px; flex: none; display: flex; align-items: center; gap: 4px; padding: 0 8px;
@@ -157,13 +156,13 @@
       background: transparent; box-shadow: none; color: var(--text-dim); cursor: pointer; font-size: 14px;
     }
     .rs-collapse:hover { background: var(--hover); color: var(--text); }
-    /* 右缘中间的显著折叠把手 */
+    /* 右缘中间的显著折叠把手（贴边、不伸入内容区，避免遮挡/残影） */
     .rs-handle {
-      position: absolute; top: 50%; right: -12px; transform: translateY(-50%);
-      width: 24px; height: 56px; padding: 0;
-      border: 1px solid var(--bar-border); border-radius: 12px;
-      background: #fff; box-shadow: 2px 2px 8px rgba(16,18,24,.12);
-      color: var(--text-dim); font-size: 13px; cursor: pointer; z-index: 2;
+      position: absolute; top: 50%; right: -10px; transform: translateY(-50%);
+      width: 22px; height: 52px; padding: 0;
+      border: 1px solid var(--bar-border); border-radius: 11px;
+      background: #fff; box-shadow: 1px 1px 4px rgba(16,18,24,.10);
+      color: var(--text-dim); font-size: 12px; cursor: pointer; z-index: 2;
       display: flex; align-items: center; justify-content: center;
     }
     .rs-handle:hover { color: var(--accent); border-color: var(--accent); background: var(--accent-soft); }
@@ -227,7 +226,7 @@
     /* ===== 原生书架覆盖层（方向2 清爽网格）===== */
     #shelf {
       position: fixed; top: 0; left: var(--side-w); right: 0; bottom: 0; z-index: 10;
-      display: none; flex-direction: column;
+      display: none; flex-direction: column; overflow: hidden;
       background: #fafbfc; color: var(--text);
     }
     body.reader-mode #shelf { top: 52px; }
