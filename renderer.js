@@ -574,14 +574,13 @@ async function refreshShelf() {
   const vm = r.fresh || r.cached;
   if (vm) {
     paintShelf(vm);
-    showShelf();
     hideLoading();
     if (r.err && r.cached) setStatus('刷新失败，展示上次数据');
-  } else {
-    // 无数据（多半未登录）：撤 loading，停在 webview 登录页
-    hideShelf();
-    hideLoading();
+    return;
   }
+  // 无数据（多半未登录）：仅当还停在书架页时才让位给 webview 登录页
+  hideLoading();
+  if (mode === 'shelf' && libTab === 'shelf') hideShelf();
 }
 
 // 自动取 Key：spike 发现端点才生效；成功写回 auth.json 的 autoKey。失败静默（走手动兜底）。
