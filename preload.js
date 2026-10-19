@@ -14,7 +14,7 @@ contextBridge.exposeInMainWorld('wereadPC', {
   writeBookCache: (id, vm) => ipcRenderer.invoke('book-cache-write', id, vm),
   fetchStats: () => ipcRenderer.invoke('weread-fetch-stats'),
   fetchBook: (id) => ipcRenderer.invoke('weread-fetch-book', id),
-  clickGuest: (x, y) => ipcRenderer.invoke('guest-click', x, y),
-  moveGuest: (x, y) => ipcRenderer.invoke('guest-move', x, y),
+  clickGuest: (webContentsId, x, y) => ipcRenderer.invoke('guest-click', webContentsId, x, y),
+  moveGuest: (webContentsId, x, y) => ipcRenderer.invoke('guest-move', webContentsId, x, y),
   writeProbe: (t) => ipcRenderer.invoke('probe-write', t)
 });

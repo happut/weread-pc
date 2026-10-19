@@ -1,5 +1,6 @@
 // renderer.js — 控制条逻辑：字号缩放 / 自动翻页 / 快捷键
-const webview = document.getElementById('weread');
+const webview = document.getElementById('weread');   // 服务 webview：书架取数 / 登录 / 自动 Key
+const wrapEl = document.getElementById('wrap');
 const fontLabel = document.getElementById('fontLabel');
 const fontMinus = document.getElementById('fontMinus');
 const fontPlus = document.getElementById('fontPlus');
@@ -29,8 +30,37 @@ let mode = 'shelf';         // 'shelf' | 'reader'
 let shelfBooted = false;    // 首次取数是否已发起
 let currentVM = null;       // 当前视图模型
 let pendingOpen = false;    // 正在打开某本书：等 reader 正文就绪再撤 loading
+let pendingOpenBookId = null;
 let libTab = 'shelf';       // 'shelf' | 'stats'，仅 mode==='shelf' 时有意义
 let bubbleEl = null;      // 首次引导气泡节点
+
+// ---- 多 book webview 保活：切换书不重载 ----
+// 每本书一个 webview，隐藏（display:none）但不销毁，阅读进度/滚动/画布均保留
+const bookWebviews = new Map(); // bookId -> webview element
+function activeWv() {
+  const wv = currentOpenBookId ? bookWebviews.get(currentOpenBookId) : null;
+  return wv || webview;
+}
+function activeGuestId() {
+  try { return activeWv().getWebContentsId(); } catch (_) { return null; }
+}
+function showOnlyBookWebview(bookId) {
+  for (const [id, wv] of bookWebviews) {
+    wv.classList.toggle('is-hidden', id !== String(bookId));
+  }
+  // 服务 webview 仅在首页/统计时露出；阅读时藏起来，避免与 book webview 叠加
+  webview.classList.toggle('is-hidden', !!bookId);
+  if (!bookId) {
+    for (const wv of bookWebviews.values()) wv.classList.add('is-hidden');
+    webview.classList.remove('is-hidden');
+  }
+}
+function destroyBookWebview(bookId) {
+  const wv = bookWebviews.get(String(bookId));
+  if (!wv) return;
+  bookWebviews.delete(String(bookId));
+  try { wv.remove(); } catch (_) {}
+}
 
 // Task 1 spike 若发现免交互取 Key 端点，填此常量（同源、带登录态）；留空 = 不支持自动取 Key，走手动粘贴。
 const AUTO_KEY_ENDPOINT = '';
@@ -121,7 +151,7 @@ const MODE_CLICK_JS = `
 // 读阅读页当前模式控件文案，镜像到外壳按钮；找不到则回落到"模式"
 async function refreshModeLabel() {
   let label = null;
-  try { label = await webview.executeJavaScript(MODE_FIND_JS); } catch (_) { label = null; }
+  try { label = await activeWv().executeJavaScript(MODE_FIND_JS); } catch (_) { label = null; }
   modeBtn.textContent = label || '模式';
   modeBtn.title = label
     ? '当前阅读页模式控件：' + label + '（点击切换）'
@@ -190,7 +220,7 @@ const MODE_PROBE_JS = `
 async function dumpModeProbe() {
   if (!window.wereadPC || !window.wereadPC.writeProbe) return;
   try {
-    const dump = await webview.executeJavaScript(MODE_PROBE_JS);
+    const dump = await activeWv().executeJavaScript(MODE_PROBE_JS);
     await window.wereadPC.writeProbe(dump);
   } catch (_) {}
 }
@@ -219,7 +249,7 @@ function applyFont() {
   const approxPx = Math.round(BASE_PX * fontSize);
   fontLabel.textContent = Math.round(fontSize * 100) + '% ≈ ' + approxPx + 'px';
   if (domReady) {
-    webview.executeJavaScript(zoomJs(fontSize)).catch(() => {});
+    activeWv().executeJavaScript(zoomJs(fontSize)).catch(() => {});
   }
 }
 
@@ -305,11 +335,12 @@ function rememberOpenBook(vm) {
   paintReadSide();
 }
 
-// 关闭某本在读书：若关的是当前，切到下一本或回首页（首页保持独立，不塞进侧栏）
+// 关闭某本在读书：销毁其保活 webview；若关的是当前，切到下一本或回首页
 function closeOpenBook(bookId) {
   const id = String(bookId);
   const wasCurrent = id === currentOpenBookId;
   openBooks = openBooks.filter(x => x.bookId !== id);
+  destroyBookWebview(id);
   if (!wasCurrent) { paintReadSide(); return; }
   currentOpenBookId = null;
   if (openBooks.length) {
@@ -326,6 +357,7 @@ function showShelf() {
   setLibraryMode(true);
   setFloatTurn(false);
   setReadSide(false);          // 首页保持独立，隐藏阅读侧栏
+  showOnlyBookWebview(null);   // 露出服务 webview；book webview 保活但隐藏
   shelfEl.classList.add('show');
   statsEl.classList.remove('show');
   tabShelf.classList.add('active'); tabStats.classList.remove('active');
@@ -335,6 +367,7 @@ function showStats() {
   setLibraryMode(true);
   setFloatTurn(false);
   setReadSide(false);          // 首页/统计同属书库层，不显示阅读侧栏
+  showOnlyBookWebview(null);
   shelfEl.classList.remove('show');
   statsEl.classList.add('show');
   tabStats.classList.add('active'); tabShelf.classList.remove('active');
@@ -353,13 +386,14 @@ function showLoading() { loadingEl.classList.add('show'); }
 function hideLoading() { loadingEl.classList.remove('show'); }
 
 // 轮询 reader 正文 canvas 是否就绪；就绪或超时后回调（超时兜底，绝不卡死）
-function waitReaderReady(cb, timeoutMs) {
+function waitReaderReady(cb, timeoutMs, wv) {
+  const target = wv || activeWv();
   const limit = timeoutMs || 6000;
   const start = Date.now();
   const timer = setInterval(async () => {
     let ready = false;
     try {
-      ready = await webview.executeJavaScript("!!document.querySelector('.wr_canvasContainer canvas')");
+      ready = await target.executeJavaScript("!!document.querySelector('.wr_canvasContainer canvas')");
     } catch (_) { ready = false; }
     if (ready || Date.now() - start > limit) { clearInterval(timer); cb(); }
   }, 120);
@@ -377,16 +411,62 @@ function revealReader() {
 function openBook(vm) {
   closeDetail();
   closeBubble();
+  const id = String(vm && vm.bookId);
+  if (!id) return;
   rememberOpenBook(vm);
-  const url = window.ShelfView.readerUrlFor(vm);
-  // 盖不透明 loading 后再导航；等 reader 正文 canvas 就绪才撤，全程不露官方网页书架
-  pendingOpen = true;
-  showLoading();
-  webview.loadURL(url).catch(() => {
-    pendingOpen = false;
+
+  // 已有保活 webview：热切换，不重载、不闪 loading
+  const existing = bookWebviews.get(id);
+  if (existing) {
+    currentOpenBookId = id;
+    showOnlyBookWebview(id);
+    paintReadSide();
+    domReady = true;
+    applyFont();
     hideLoading();
-    setStatus('打开失败，请重试');
+    if (mode !== 'reader') revealReader();
+    else setFloatTurn(true);
+    return;
+  }
+
+  const url = window.ShelfView.readerUrlFor(vm);
+  // 新书：独立 webview 首次加载，盖不透明 loading，等正文 canvas 就绪再露出
+  const wv = document.createElement('webview');
+  wv.className = 'book-wv';
+  wv.setAttribute('partition', 'persist:weread');
+  wv.setAttribute('allowpopups', 'false');
+  wv.setAttribute('data-book-id', id);
+  wrapEl.appendChild(wv);
+  bookWebviews.set(id, wv);
+
+  currentOpenBookId = id;
+  showOnlyBookWebview(id);
+  pendingOpen = true;
+  pendingOpenBookId = id;
+  showLoading();
+
+  wv.addEventListener('dom-ready', () => {
+    if (currentOpenBookId !== id) return;
+    domReady = true;
+    applyFont();
+    if (pendingOpen && pendingOpenBookId === id) {
+      pendingOpen = false;
+      pendingOpenBookId = null;
+      waitReaderReady(revealReader, 6000, wv);
+    }
   });
+  wv.addEventListener('did-fail-load', () => {
+    if (currentOpenBookId !== id) return;
+    if (pendingOpen && pendingOpenBookId === id) {
+      pendingOpen = false;
+      pendingOpenBookId = null;
+      hideLoading();
+      setStatus('打开失败，请重试');
+    }
+  });
+
+  // 用 src 触发加载（动态 webview 需挂载后设置）
+  wv.src = url;
 }
 
 // 渲染书架；vm 为空则显示空态
@@ -588,7 +668,7 @@ function startAuto() {
   const sec = Math.max(3, parseInt(intervalInput.value, 10) || 30);
   intervalInput.value = sec;
   autoTimer = setInterval(() => {
-    webview.executeJavaScript(TURN_JS).catch(() => {});
+    activeWv().executeJavaScript(TURN_JS).catch(() => {});
   }, sec * 1000);
   autoToggle.textContent = '停止翻页';
   autoToggle.classList.add('primary');
@@ -620,16 +700,16 @@ fontPlus.addEventListener('click', () => {
 });
 autoToggle.addEventListener('click', () => autoTimer ? stopAuto() : startAuto());
 prevBtn.addEventListener('click', () => {
-  webview.executeJavaScript(TURN_PREV_JS).catch(() => {});
+  activeWv().executeJavaScript(TURN_PREV_JS).catch(() => {});
 });
 nextBtn.addEventListener('click', () => {
-  webview.executeJavaScript(TURN_JS).catch(() => {});
+  activeWv().executeJavaScript(TURN_JS).catch(() => {});
 });
 floatPrevBtn.addEventListener('click', () => {
-  webview.executeJavaScript(TURN_PREV_JS).catch(() => {});
+  activeWv().executeJavaScript(TURN_PREV_JS).catch(() => {});
 });
 floatNextBtn.addEventListener('click', () => {
-  webview.executeJavaScript(TURN_JS).catch(() => {});
+  activeWv().executeJavaScript(TURN_JS).catch(() => {});
 });
 rerenderBtn.addEventListener('click', () => {
   if (window.wereadPC) window.wereadPC.forceRerender();
@@ -645,13 +725,13 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 async function locateModeControl() {
   for (let attempt = 0; attempt < 2; attempt++) {
     let vp = null;
-    try { vp = await webview.executeJavaScript(VIEWPORT_JS); } catch (_) { vp = null; }
+    try { vp = await activeWv().executeJavaScript(VIEWPORT_JS); } catch (_) { vp = null; }
     if (vp && window.wereadPC && window.wereadPC.moveGuest) {
-      try { await window.wereadPC.moveGuest(vp.w / 2, vp.h / 2); } catch (_) {}
+      try { await window.wereadPC.moveGuest(activeGuestId(), vp.w / 2, vp.h / 2); } catch (_) {}
     }
     await sleep(attempt === 0 ? 500 : 700);
     let hit = null;
-    try { hit = await webview.executeJavaScript(MODE_CLICK_JS); } catch (_) { hit = null; }
+    try { hit = await activeWv().executeJavaScript(MODE_CLICK_JS); } catch (_) { hit = null; }
     if (hit) return hit;
   }
   return null;
@@ -660,10 +740,10 @@ modeBtn.addEventListener('click', async () => {
   await dumpModeProbe();               // 临时探针：先 dump 当前阅读页 DOM（弹层开着也一并抓）
   const hit = await locateModeControl();
   if (!hit) { setStatus('未找到模式控件'); return; }
-  // 合成 .click() 无效，改用主进程向 guest 注入真实鼠标事件（isTrusted）
+  // 合成 .click() 无效，改用主进程向 guest 注入真实鼠标事件（isTrusted），指向当前 book webview
   let ok = false;
   if (window.wereadPC && window.wereadPC.clickGuest) {
-    try { ok = await window.wereadPC.clickGuest(hit.x, hit.y); } catch (_) { ok = false; }
+    try { ok = await window.wereadPC.clickGuest(activeGuestId(), hit.x, hit.y); } catch (_) { ok = false; }
   }
   setStatus(ok ? '已切换模式' : '点击失败');
   setTimeout(refreshModeLabel, 700);   // 等阅读页重排后回读新状态
@@ -694,9 +774,9 @@ window.addEventListener('keydown', (e) => {
   }
   if (!(e.metaKey || e.ctrlKey)) return;
   if (e.key === 'ArrowRight') {
-    webview.executeJavaScript(TURN_JS).catch(() => {});
+    activeWv().executeJavaScript(TURN_JS).catch(() => {});
   } else if (e.key === 'ArrowLeft') {
-    webview.executeJavaScript(TURN_PREV_JS).catch(() => {});
+    activeWv().executeJavaScript(TURN_PREV_JS).catch(() => {});
   }
 });
 

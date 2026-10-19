@@ -126,6 +126,9 @@
 
     #wrap { display: flex; flex-direction: column; height: calc(100% - 52px); }
     webview { flex: 1; width: 100%; }
+    /* 每本书独立 webview：隐藏时保留页面状态，切换不重载 */
+    webview.book-wv { flex: 1; width: 100%; }
+    webview.is-hidden { display: none !important; }
 
     /* ===== 阅读左侧「在读」侧栏（仅阅读视图；首页保持独立不显示）===== */
     #readSide {

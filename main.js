@@ -6,19 +6,38 @@ const WereadApi = require('./weread-api.js');
 
 let win = null;
 let powerSaveId = null;
-let guest = null;        // webview 的 webContents
+let guest = null;        // 最近附着的 webview webContents（兜底）
+const guests = new Map(); // webContentsId -> webContents（多书 webview 保活）
 let lastDisplayId = null;
 
 // 阅读页 webview 用 persist:weread 分区。默认 Electron UA 含 "Electron/xx" 和 app 名，
 // 被官方识别为非标准客户端后不计阅读时长。这里伪装成标准桌面 Chrome，使时长正常上报。
 const WEREAD_UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36';
 
+function resolveGuest(webContentsId) {
+  if (webContentsId != null && webContentsId !== '') {
+    const g = guests.get(Number(webContentsId));
+    if (g && !g.isDestroyed()) return g;
+    return null;
+  }
+  // 未指定 id：优先未销毁的任一 guest
+  for (const g of guests.values()) {
+    if (!g.isDestroyed()) return g;
+  }
+  return guest && !guest.isDestroyed() ? guest : null;
+}
+
 // 跨屏拖动会改变 devicePixelRatio，而正文是 canvas 位图，不随 DPR 变化重绘 -> 字形错位
 // 做法：换屏时派发 resize 事件 + 抖动 1px 触发真实重排，让阅读器重新排版
 function forceRerender() {
   if (!win) return;
   const [w, h] = win.getSize();
-  if (guest) guest.executeJavaScript('window.dispatchEvent(new Event("resize"))').catch(() => {});
+  for (const g of guests.values()) {
+    if (!g.isDestroyed()) g.executeJavaScript('window.dispatchEvent(new Event("resize"))').catch(() => {});
+  }
+  if (guest && !guest.isDestroyed() && !guests.has(guest.id)) {
+    guest.executeJavaScript('window.dispatchEvent(new Event("resize"))').catch(() => {});
+  }
   win.setSize(w, h + 1);
   setTimeout(() => win.setSize(w, h), 150);
 }
@@ -95,9 +114,11 @@ function createWindow() {
   win.setMenuBarVisibility(false);
   win.loadFile('index.html');
 
-  // 网页内新开链接 -> 在 webview 内打开，不弹新窗口
+  // 网页内新开链接 -> 在 webview 内打开，不弹新窗口；登记多 book webContents
   win.webContents.on('did-attach-webview', (_, wc) => {
     guest = wc;
+    guests.set(wc.id, wc);
+    wc.once('destroyed', () => { guests.delete(wc.id); });
     // 重置可能被持久化的页面级缩放（会破坏 canvas 渲染，产生字形错位）
     wc.setZoomFactor(1);
     wc.setWindowOpenHandler(({ url }) => {
@@ -137,25 +158,27 @@ ipcMain.handle('force-rerender', () => {
 });
 
 // 向 webview guest 注入真实鼠标点击（isTrusted），用于点那些无视合成 .click() 的阅读页控件。
-// x/y 为 guest 视口内 CSS 像素坐标（元素中心），与 getBoundingClientRect 一致。
-ipcMain.handle('guest-click', (_, x, y) => {
-  if (!guest || guest.isDestroyed()) return false;
+// webContentsId 指定目标 book webview（多书保活时点当前那本）；x/y 为 guest 视口内 CSS 像素。
+ipcMain.handle('guest-click', (_, webContentsId, x, y) => {
+  const g = resolveGuest(webContentsId);
+  if (!g) return false;
   const px = Math.round(Number(x)), py = Math.round(Number(y));
   if (!isFinite(px) || !isFinite(py)) return false;
   try {
-    guest.sendInputEvent({ type: 'mouseMove', x: px, y: py });
-    guest.sendInputEvent({ type: 'mouseDown', x: px, y: py, button: 'left', clickCount: 1 });
-    guest.sendInputEvent({ type: 'mouseUp', x: px, y: py, button: 'left', clickCount: 1 });
+    g.sendInputEvent({ type: 'mouseMove', x: px, y: py });
+    g.sendInputEvent({ type: 'mouseDown', x: px, y: py, button: 'left', clickCount: 1 });
+    g.sendInputEvent({ type: 'mouseUp', x: px, y: py, button: 'left', clickCount: 1 });
     return true;
   } catch (_) { return false; }
 });
 
 // 向 webview guest 注入真实鼠标移动（isTrusted），用于唤出会自动隐藏的阅读页工具栏。
-ipcMain.handle('guest-move', (_, x, y) => {
-  if (!guest || guest.isDestroyed()) return false;
+ipcMain.handle('guest-move', (_, webContentsId, x, y) => {
+  const g = resolveGuest(webContentsId);
+  if (!g) return false;
   const px = Math.round(Number(x)), py = Math.round(Number(y));
   if (!isFinite(px) || !isFinite(py)) return false;
-  try { guest.sendInputEvent({ type: 'mouseMove', x: px, y: py }); return true; }
+  try { g.sendInputEvent({ type: 'mouseMove', x: px, y: py }); return true; }
   catch (_) { return false; }
 });
 
