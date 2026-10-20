@@ -75,6 +75,17 @@ const MAX_ZOOM = 2.0;
 const ZOOM_STEP = 0.05;
 const BASE_PX = 18; // 网页版最小一级的字号
 
+// ---- 用户偏好持久化：缩放比例与自动翻页间隔，重启后恢复 ----
+const FONT_SIZE_KEY = 'wereadpc.fontSize';
+const AUTO_INTERVAL_KEY = 'wereadpc.autoInterval';
+try {
+  const savedZoom = parseFloat(localStorage.getItem(FONT_SIZE_KEY));
+  if (isFinite(savedZoom)) fontSize = clampZoom(savedZoom);
+  const savedSec = parseInt(localStorage.getItem(AUTO_INTERVAL_KEY), 10);
+  if (isFinite(savedSec) && savedSec >= 3 && savedSec <= 600) intervalInput.value = savedSec;
+} catch (_) {}
+applyFont();   // 立即刷新工具条上的缩放标签（domReady 前不注入 guest）
+
 
 // ---- 翻页：优先点新版底部分页按钮，否则模拟方向键 + 滚动兜底 ----
 const TURN_JS = `
@@ -230,6 +241,7 @@ const zoomJs = (z) => `
 
 function applyFont() {
   fontSize = clampZoom(fontSize);
+  try { localStorage.setItem(FONT_SIZE_KEY, String(fontSize)); } catch (_) {}
   const approxPx = Math.round(BASE_PX * fontSize);
   fontLabel.textContent = Math.round(fontSize * 100) + '% ≈ ' + approxPx + 'px';
   if (domReady) {
@@ -466,17 +478,26 @@ function waitReaderReady(cb, timeoutMs, wv) {
     try {
       ready = await target.executeJavaScript("!!document.querySelector('.wr_canvasContainer canvas')");
     } catch (_) { ready = false; }
-    if (ready || Date.now() - start > limit) { clearInterval(timer); cb(); }
+    if (ready || Date.now() - start > limit) { clearInterval(timer); cb(ready); }
   }, 120);
 }
 
 // 正文就绪：撤 loading 露出已渲染好的 reader（侧栏始终不动）
-function revealReader() {
+function revealReader(ready) {
   hideShelf();
   hideLoading();
   setFloatTurn(true);   // 阅读视图才露出右下角悬浮翻页钮
+  if (ready === false) setStatus('正文加载超时：网络较慢，或微信读书改版导致识别失败，可点 ⟳ 重绘');
   setTimeout(refreshModeLabel, 800);   // 正文就绪后回读阅读页模式控件
   setTimeout(dumpModeProbe, 1200);     // 临时探针：dump 模式控件 DOM
+}
+
+// 加载失败分级提示：区分断网、被打断与其他错误，不再一律「打开失败，请重试」
+const NET_FAIL_CODES = new Set([-7, -100, -101, -102, -103, -104, -105, -106, -109, -110, -112, -137]);
+function loadFailMessage(code, desc) {
+  if (code === -3) return '';   // ERR_ABORTED：导航被打断（如重定向），非错误
+  if (NET_FAIL_CODES.has(code)) return '网络连接失败，请检查网络后重试';
+  return '打开失败' + (desc ? '（' + desc + '）' : '') + '，请重试';
 }
 
 function openBook(vm) {
@@ -528,14 +549,28 @@ function openBook(vm) {
       waitReaderReady(revealReader, 6000, wv);
     }
   });
-  wv.addEventListener('did-fail-load', () => {
+  wv.addEventListener('did-fail-load', (e) => {
+    if (e && e.isMainFrame === false) return;   // 子帧失败不打扰
     if (currentOpenBookId !== id) return;
     if (pendingOpen && pendingOpenBookId === id) {
       pendingOpen = false;
       pendingOpenBookId = null;
       hideLoading();
-      setStatus('打开失败，请重试');
+      setStatus(loadFailMessage(e && e.errorCode, e && e.errorDescription));
     }
+  });
+  // 阅读中登录过期：页面会被重定向到官方登录页（自带扫码），更新状态并提示就地重登
+  wv.addEventListener('did-navigate', (e) => {
+    if (!LOGIN_URL_RE.test(String((e && e.url) || ''))) return;
+    shelfLiveOk = false;
+    refreshConnStatus();
+    if (currentOpenBookId === id) setStatus('登录已过期，请在页面中扫码重新登录后继续阅读');
+  });
+  wv.addEventListener('did-navigate-in-page', (e) => {
+    if (!LOGIN_URL_RE.test(String((e && e.url) || ''))) return;
+    shelfLiveOk = false;
+    refreshConnStatus();
+    if (currentOpenBookId === id) setStatus('登录已过期，请在页面中扫码重新登录后继续阅读');
   });
 
   // 用 src 触发加载（动态 webview 需挂载后设置）
@@ -554,7 +589,7 @@ function paintShelf(vm, hintErr) {
     onDetail: openDetail,
     onRefresh: () => refreshShelf()
   });
-  showBubbleOnce();   // 首次提示单击/双击
+  showBubbleOnce();   // 首次提示：单击即读、右键看详情
 }
 
 // 取数并渲染：先缓存秒开，再后台刷新
@@ -697,7 +732,7 @@ function showBubbleOnce() {
   try { if (localStorage.getItem('wrpc-detail-bubble')) return; } catch (_) {}
   const b = document.createElement('div');
   b.className = 'bubble';
-  b.textContent = '单击书卡看详情，双击直接阅读';
+  b.textContent = '单击书卡直接阅读，右键（或 ⋯）看详情与统计';
   b.style.left = '50%'; b.style.bottom = '28px'; b.style.transform = 'translateX(-50%)';
   document.body.appendChild(b);
   bubbleEl = b;
@@ -752,6 +787,7 @@ async function renderSettings() {
 function startAuto() {
   const sec = Math.max(3, parseInt(intervalInput.value, 10) || 30);
   intervalInput.value = sec;
+  try { localStorage.setItem(AUTO_INTERVAL_KEY, String(sec)); } catch (_) {}
   autoTimer = setInterval(() => {
     activeWv().executeJavaScript(TURN_JS).catch(() => {});
   }, sec * 1000);
@@ -800,9 +836,23 @@ rerenderBtn.addEventListener('click', () => {
   if (window.wereadPC) window.wereadPC.forceRerender();
   setTimeout(applyFont, 400); // 重排后补回缩放样式
 });
+// 单页模式：阅读器在窗口 <=1000px 时自动切单页（实测）。做成 toggle，退出时还原原宽度，
+// 避免按钮悄悄改掉用户手动调好的窗口尺寸
+let widthBeforeSinglePage = null;
 singlePageBtn.addEventListener('click', () => {
-  // 阅读器在窗口 <=1000px 时自动切单页（实测），中缝消失、正文字号等效变大
-  if (window.wereadPC) window.wereadPC.setWindowWidth(1000);
+  if (!window.wereadPC) return;
+  if (widthBeforeSinglePage == null) {
+    const cur = Math.round(window.innerWidth);
+    widthBeforeSinglePage = cur > 1000 ? cur : 1600;   // 本来就窄：退出时给个双页宽度
+    window.wereadPC.setWindowWidth(1000);
+    singlePageBtn.classList.add('primary');
+    setStatus('单页模式 · 再点「单页」恢复原宽度');
+  } else {
+    window.wereadPC.setWindowWidth(widthBeforeSinglePage);
+    widthBeforeSinglePage = null;
+    singlePageBtn.classList.remove('primary');
+    setStatus('');
+  }
 });
 const VIEWPORT_JS = `(function(){ return { w: window.innerWidth, h: window.innerHeight }; })();`;
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -832,6 +882,9 @@ navStatsBtn.addEventListener('click', () => {
 });
 settingsBtn.addEventListener('click', () => openSettings());
 intervalInput.addEventListener('change', () => {
+  const sec = Math.min(600, Math.max(3, parseInt(intervalInput.value, 10) || 30));
+  intervalInput.value = sec;
+  try { localStorage.setItem(AUTO_INTERVAL_KEY, String(sec)); } catch (_) {}
   if (autoTimer) { stopAuto(); startAuto(); } // 修改间隔后重启
 });
 
@@ -851,9 +904,10 @@ window.addEventListener('keydown', (e) => {
 });
 
 // ---- webview 生命周期 ----
+const LOGIN_URL_RE = /\/web\/login|passport|login\.qq|scan\/login/i;
 function maybeDetectLogout(url) {
   const u = String(url || '');
-  if (/\/web\/login|passport|login\.qq|scan\/login/i.test(u)) {
+  if (LOGIN_URL_RE.test(u)) {
     shelfLiveOk = false;
     refreshConnStatus();
     // 扫码登录过程中跳到登录页是正常流程，不能把向导盖回去
