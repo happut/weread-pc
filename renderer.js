@@ -104,11 +104,17 @@ function wrThemeWant() {
 function readerThemeSyncJs(want) {
   const w = JSON.stringify(want);
   // 站点主题键 wr_theme 是 cookie（bundle 常量 COOKIE_THEME），localStorage 只是镜像；
-  // 比对 cookie，不一致则写 cookie + 镜像并 reload 一次（自限）
+  // 比对 cookie，不一致则写 cookie + 镜像并 reload 一次（自限）。
+  // 写入前必须把 host 级和 domain 级旧 cookie 都清掉再统一写 domain 级：
+  // 站点原 cookie 带 domain=.weread.qq.com，若只写 host 级会出现同名双 cookie，
+  // document.cookie 按创建时间排序站点旧的永远在前，首值比对永不收敛 → 无限重载
   return '(function(){try{var m=document.cookie.match(/(?:^|;\\s*)wr_theme=([^;]*)/);'
     + 'var cur=m?m[1]:"";'
     + 'if(cur!==' + w + '){'
-    + 'document.cookie="wr_theme="+' + w + '+"; path=/; max-age=31536000";'
+    + 'var ex="; path=/; max-age=0; expires=Thu, 01 Jan 1970 00:00:00 GMT";'
+    + 'document.cookie="wr_theme="+ex;'
+    + 'document.cookie="wr_theme=; domain=.weread.qq.com"+ex;'
+    + 'document.cookie="wr_theme="+' + w + '+"; path=/; domain=.weread.qq.com; max-age=31536000";'
     + 'try{localStorage.setItem("wr_theme",' + w + ');}catch(e){}'
     + 'location.reload();return "reloaded";}'
     + 'return "ok";}catch(e){return "err";}})()';
