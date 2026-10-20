@@ -27,14 +27,21 @@
   function normalizeTheme(v) {
     return (v === 'light' || v === 'dark') ? v : 'system';
   }
+  // 阅读器 guest 页自带主题键 wr_theme 只取 white/dark（站点 bundle 常量），
+  // 写它等于点站点自己的夜间按钮，不注入 CSS
+  function wrThemeFor(theme, systemDark) {
+    const t = normalizeTheme(theme);
+    const dark = t === 'dark' || (t === 'system' && !!systemDark);
+    return dark ? 'dark' : 'white';
+  }
   const THEME_OPTIONS = [
     { value: 'system', label: '跟随系统' },
     { value: 'light', label: '浅色' },
     { value: 'dark', label: '深色' }
   ];
 
-  // model = { mode, source, maskedKey, manualKey, manualCookie, theme }
-  // handlers = { onClose, onSaveManual({key,cookie}), onClearManual, onLogout, onClearCache, onRefreshStats, onThemeChange(value) }
+  // model = { mode, source, maskedKey, manualKey, manualCookie, theme, syncReaderTheme }
+  // handlers = { onClose, onSaveManual({key,cookie}), onClearManual, onLogout, onClearCache, onRefreshStats, onThemeChange(value), onSyncReaderThemeChange(checked) }
   function render(container, model, handlers) {
     const m = model || {};
     const h = handlers || {};
@@ -82,6 +89,13 @@
       tabs.appendChild(b);
     });
     secTheme.appendChild(tabs);
+    const syncRow = document.createElement('label');
+    syncRow.style.cssText = 'display:flex;align-items:center;gap:6px;margin-top:10px;font-size:12px;color:var(--text-mid);cursor:pointer;';
+    const ck = el('input'); ck.type = 'checkbox'; ck.checked = m.syncReaderTheme !== false;
+    ck.addEventListener('change', function () { h.onSyncReaderThemeChange && h.onSyncReaderThemeChange(ck.checked); });
+    syncRow.appendChild(ck);
+    syncRow.appendChild(el('span', null, '同步微信读书阅读器夜间模式（阅读器跟随应用外观，切换需重载阅读器一次）'));
+    secTheme.appendChild(syncRow);
     panel.appendChild(secTheme);
 
     // 高级：手动 Key / Cookie
@@ -141,7 +155,7 @@
     }
   }
 
-  const api = { el, pillClass, pillText, sourceText, normalizeTheme, render };
+  const api = { el, pillClass, pillText, sourceText, normalizeTheme, wrThemeFor, render };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.SettingsView = api;
 })(typeof window !== 'undefined' ? window : globalThis);

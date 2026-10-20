@@ -90,6 +90,36 @@ function currentTheme() {
 }
 window.wereadPC.setTheme(currentTheme()).catch(() => {});
 
+// ---- 阅读器夜间模式同步：写 guest 自带的 wr_theme（white/dark），不注入 CSS ----
+const SYNC_READER_THEME_KEY = 'wereadpc.syncReaderTheme';
+function syncReaderThemeOn() {
+  try { return localStorage.getItem(SYNC_READER_THEME_KEY) !== '0'; } catch (_) { return true; }
+}
+function systemDarkNow() {
+  try { return window.matchMedia('(prefers-color-scheme: dark)').matches; } catch (_) { return false; }
+}
+function wrThemeWant() {
+  return window.SettingsView.wrThemeFor(currentTheme(), systemDarkNow());
+}
+function readerThemeSyncJs(want) {
+  const w = JSON.stringify(want);
+  return "(function(){try{if(localStorage.getItem('wr_theme')!==" + w + "){localStorage.setItem('wr_theme'," + w + ");location.reload();return 'reloaded';}return 'ok';}catch(e){return 'err';}})()";
+}
+function applyReaderThemeSync(wv) {
+  if (!wv || !syncReaderThemeOn()) return;
+  let url = '';
+  try { url = wv.getURL(); } catch (_) { return; }
+  if (String(url).indexOf('/web/reader/') === -1) return;
+  wv.executeJavaScript(readerThemeSyncJs(wrThemeWant())).catch(() => {});
+}
+function applyReaderThemeSyncAll() {
+  for (const wv of bookWebviews.values()) applyReaderThemeSync(wv);
+  applyReaderThemeSync(webview);
+}
+window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
+  if (currentTheme() === 'system') applyReaderThemeSyncAll();
+});
+
 
 // ---- 翻页：优先点新版底部分页按钮，否则模拟方向键 + 滚动兜底 ----
 const TURN_JS = `
@@ -604,6 +634,7 @@ function openBook(vm) {
       waitReaderReady(revealReader, 6000, wv);
     }
   });
+  wv.addEventListener('dom-ready', () => { applyReaderThemeSync(wv); });
   wv.addEventListener('did-fail-load', (e) => {
     if (e && e.isMainFrame === false) return;   // 子帧失败不打扰
     if (currentOpenBookId !== id) return;
@@ -792,7 +823,8 @@ async function renderSettings() {
     maskedKey: resolved.key ? window.WereadAuth.maskKey(resolved.key) : '',
     manualKey: auth.manualKey || '',
     manualCookie: auth.manualCookie || '',
-    theme: currentTheme()
+    theme: currentTheme(),
+    syncReaderTheme: syncReaderThemeOn()
   };
   window.SettingsView.render(settingsEl, model, {
     onClose: closeSettings,
@@ -834,6 +866,12 @@ async function renderSettings() {
       const t = window.SettingsView.normalizeTheme(v);
       try { localStorage.setItem(THEME_KEY, t); } catch (_) {}
       try { await window.wereadPC.setTheme(t); } catch (_) {}
+      applyReaderThemeSyncAll();
+      await renderSettings();
+    },
+    onSyncReaderThemeChange: async (checked) => {
+      try { localStorage.setItem(SYNC_READER_THEME_KEY, checked ? '1' : '0'); } catch (_) {}
+      if (checked) applyReaderThemeSyncAll();
       await renderSettings();
     }
   });
