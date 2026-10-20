@@ -103,14 +103,24 @@ function wrThemeWant() {
 }
 function readerThemeSyncJs(want) {
   const w = JSON.stringify(want);
-  return "(function(){try{if(localStorage.getItem('wr_theme')!==" + w + "){localStorage.setItem('wr_theme'," + w + ");location.reload();return 'reloaded';}return 'ok';}catch(e){return 'err';}})()";
+  // 站点主题键 wr_theme 是 cookie（bundle 常量 COOKIE_THEME），localStorage 只是镜像；
+  // 比对 cookie，不一致则写 cookie + 镜像并 reload 一次（自限）
+  return '(function(){try{var m=document.cookie.match(/(?:^|;\\s*)wr_theme=([^;]*)/);'
+    + 'var cur=m?m[1]:"";'
+    + 'if(cur!==' + w + '){'
+    + 'document.cookie="wr_theme="+' + w + '+"; path=/; max-age=31536000";'
+    + 'try{localStorage.setItem("wr_theme",' + w + ');}catch(e){}'
+    + 'location.reload();return "reloaded";}'
+    + 'return "ok";}catch(e){return "err";}})()';
 }
 function applyReaderThemeSync(wv) {
   if (!wv || !syncReaderThemeOn()) return;
   let url = '';
   try { url = wv.getURL(); } catch (_) { return; }
   if (String(url).indexOf('/web/reader/') === -1) return;
-  wv.executeJavaScript(readerThemeSyncJs(wrThemeWant())).catch(() => {});
+  wv.executeJavaScript(readerThemeSyncJs(wrThemeWant()))
+    .then((r) => { if (r === 'reloaded') console.info('[theme-sync] wr_theme →', wrThemeWant()); })
+    .catch(() => {});
 }
 function applyReaderThemeSyncAll() {
   for (const wv of bookWebviews.values()) applyReaderThemeSync(wv);
