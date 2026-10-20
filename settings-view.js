@@ -26,7 +26,7 @@
   }
 
   // model = { mode, source, maskedKey, manualKey, manualCookie }
-  // handlers = { onClose, onSaveManual({key,cookie}), onClearManual, onRetryAuto, onRefreshStats }
+  // handlers = { onClose, onSaveManual({key,cookie}), onClearManual, onLogout, onClearCache, onRefreshStats }
   function render(container, model, handlers) {
     const m = model || {};
     const h = handlers || {};
@@ -55,10 +55,11 @@
       kb.appendChild(el('span', 'stg-lbl', ' · 来源 ' + sourceText(m.source)));
       sec1.appendChild(kb);
     }
-    const retry = el('button', null, '重新获取 Key');
-    retry.style.marginTop = '10px';
-    retry.addEventListener('click', function () { h.onRetryAuto && h.onRetryAuto(); });
-    sec1.appendChild(retry);
+    const logout = el('button', null, '退出登录');
+    logout.style.marginTop = '10px';
+    logout.title = '清除本机微信读书登录 Cookie，需重新扫码；不影响统计 API Key';
+    logout.addEventListener('click', function () { h.onLogout && h.onLogout(); });
+    sec1.appendChild(logout);
     panel.appendChild(sec1);
 
     // 高级：手动 Key / Cookie
@@ -91,6 +92,11 @@
     const rs = el('button', null, '刷新统计数据');
     rs.addEventListener('click', function () { h.onRefreshStats && h.onRefreshStats(); });
     sec3.appendChild(rs);
+    const cc = el('button', null, '清除本地缓存');
+    cc.style.marginLeft = '8px';
+    cc.title = '删除书架 / 统计 / 书籍详情缓存，下次打开重新拉取';
+    cc.addEventListener('click', function () { h.onClearCache && h.onClearCache(); });
+    sec3.appendChild(cc);
     const note = el('div', 'stg-lbl', '统计与书籍详情会自动缓存，每次成功取数覆盖旧值。');
     note.style.marginTop = '8px';
     sec3.appendChild(note);

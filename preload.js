@@ -8,6 +8,8 @@ contextBridge.exposeInMainWorld('wereadPC', {
   writeShelfCache: (vm) => ipcRenderer.invoke('shelf-cache-write', vm),
   readAuth: () => ipcRenderer.invoke('auth-read'),
   writeAuth: (a) => ipcRenderer.invoke('auth-write', a),
+  logout: () => ipcRenderer.invoke('logout'),
+  clearCache: () => ipcRenderer.invoke('clear-cache'),
   readStatsCache: () => ipcRenderer.invoke('stats-cache-read'),
   writeStatsCache: (vm) => ipcRenderer.invoke('stats-cache-write', vm),
   readBookCache: (id) => ipcRenderer.invoke('book-cache-read', id),

@@ -39,3 +39,18 @@ test('toBookVM: 携带 readingTime（④退化）与 category（③退化）', (
   assert.strictEqual(b1.readingTime, 3600); // bookProgress b1.readingTime
   assert.strictEqual(b1.category, '');      // fixture 无 category → 空串不报错
 });
+
+test('filterBooks: 按书名/作者子串过滤，大小写不敏感', () => {
+  const { filterBooks } = require('../shelf-data.js');
+  const books = [
+    { title: 'JavaScript 高级程序设计', author: 'Matt Frisbie' },
+    { title: '深入理解计算机系统', author: 'Randal E. Bryant' },
+    { title: 'SICP', author: 'harold abelson' }
+  ];
+  assert.strictEqual(filterBooks(books, 'javascript').length, 1);
+  assert.strictEqual(filterBooks(books, 'bryant')[0].title, '深入理解计算机系统');
+  assert.strictEqual(filterBooks(books, 'HAROLD')[0].title, 'SICP');
+  assert.strictEqual(filterBooks(books, '  ').length, 3);
+  assert.strictEqual(filterBooks(books, '不存在的书').length, 0);
+  assert.deepStrictEqual(filterBooks(null, 'x'), []);
+});

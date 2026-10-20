@@ -134,6 +134,11 @@
     if (this._raf) { cancelAnimationFrame(this._raf); this._raf = null; }
     if (this._pendingReflow) { cancelAnimationFrame(this._pendingReflow); this._pendingReflow = null; }
   };
+  VirtualGrid.prototype.setItems = function (items) {
+    this.items = items || [];
+    this.viewport.scrollTop = 0;
+    this.reflow();
+  };
   VirtualGrid.prototype._schedule = function () {
     if (this._raf) return;
     this._raf = requestAnimationFrame(() => { this._raf = null; this.paint(); });
@@ -198,6 +203,10 @@
     head.appendChild(pill('pill-read', '在读 ' + vm.stats.reading));
     head.appendChild(pill('pill-done', '读完 ' + vm.stats.finished));
     head.appendChild(pill('pill-time', '累计 ' + vm.stats.totalHours + 'h'));
+    const search = el('input', 'shelf-search');
+    search.type = 'text';
+    search.placeholder = '搜索书名 / 作者';
+    head.appendChild(search);
     const spacer = el('span', 'spacer');
     head.appendChild(spacer);
     const refresh = el('button', 'shelf-refresh', '刷新');
@@ -206,17 +215,30 @@
     container.appendChild(head);
 
     const body = el('div', 'shelf-body');
+    let continueSec = null;
     if (vm.continueReading.length) {
-      body.appendChild(el('div', 'shelf-subhead', '继续阅读'));
+      continueSec = el('div');
+      continueSec.appendChild(el('div', 'shelf-subhead', '继续阅读'));
       const row = el('div', 'continue-row');
       vm.continueReading.forEach(b => row.appendChild(bookCard(b, { onOpen: handlers.onOpen, onDetail: handlers.onDetail })));
-      body.appendChild(row);
+      continueSec.appendChild(row);
+      body.appendChild(continueSec);
     }
-    body.appendChild(el('div', 'shelf-subhead', '全部藏书 · ' + vm.allBooks.length + ' 本'));
+    const allSub = el('div', 'shelf-subhead', '全部藏书 · ' + vm.allBooks.length + ' 本');
+    body.appendChild(allSub);
     const viewport = el('div', 'grid-viewport');
     body.appendChild(viewport);
     container.appendChild(body);
     container._grid = new VirtualGrid(viewport, vm.allBooks, { onOpen: handlers.onOpen, onDetail: handlers.onDetail });
+    search.addEventListener('input', () => {
+      const q = search.value;
+      const list = root.ShelfData ? root.ShelfData.filterBooks(vm.allBooks, q) : vm.allBooks;
+      allSub.textContent = q.trim()
+        ? '搜索结果 · ' + list.length + ' 本'
+        : '全部藏书 · ' + vm.allBooks.length + ' 本';
+      if (continueSec) continueSec.style.display = q.trim() ? 'none' : '';
+      container._grid.setItems(list);
+    });
   }
 
   function pill(cls, text) {

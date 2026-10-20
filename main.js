@@ -218,6 +218,23 @@ ipcMain.handle('shelf-cache-write', (_, viewModel) => {
 ipcMain.handle('auth-read', () => readJson(AUTH_PATH));
 ipcMain.handle('auth-write', (_, auth) => writeJson(AUTH_PATH, auth || {}));
 
+// 退出登录：只清 weread 分区的 Cookie（auth.json 里的统计 Key 不动）
+ipcMain.handle('logout', async () => {
+  try {
+    await session.fromPartition('persist:weread').clearStorageData({ storages: ['cookies'] });
+    return true;
+  } catch (_) { return false; }
+});
+
+// 清除本地缓存：书架 / 统计 / 书籍详情三个缓存目录整体删除
+ipcMain.handle('clear-cache', () => {
+  let ok = true;
+  for (const dir of [SHELF_CACHE_DIR, STATS_CACHE_DIR, BOOK_CACHE_DIR]) {
+    try { fs.rmSync(dir, { recursive: true, force: true }); } catch (_) { ok = false; }
+  }
+  return ok;
+});
+
 // 统计缓存（看板视图模型）
 ipcMain.handle('stats-cache-read', () => readJson(path.join(STATS_CACHE_DIR, 'stats.json')));
 ipcMain.handle('stats-cache-write', (_, vm) => { ensureDir(STATS_CACHE_DIR); return writeJson(path.join(STATS_CACHE_DIR, 'stats.json'), vm); });

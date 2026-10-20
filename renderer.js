@@ -59,9 +59,6 @@ function destroyBookWebview(bookId) {
   try { wv.remove(); } catch (_) {}
 }
 
-// Task 1 spike 若发现免交互取 Key 端点，填此常量（同源、带登录态）；留空 = 不支持自动取 Key，走手动粘贴。
-const AUTO_KEY_ENDPOINT = '';
-
 let fontSize = 1.0;       // 缩放系数：1.0 = 100%，即网页版当前档位字号（最小档 18px）
 let autoTimer = null;
 let domReady = false;     // 由 webview dom-ready 事件维护，比 readyState 属性可靠
@@ -277,6 +274,7 @@ function loadOpenBooks() {
         title: x.title || '',
         author: x.author || '',
         cover: x.cover || '',
+        pinned: !!x.pinned,
         vm: x.vm
       }));
     }
@@ -331,7 +329,9 @@ function paintReadSide() {
     readSideListEl.appendChild(em);
     return;
   }
-  for (const item of openBooks) {
+  // 置顶书排前，组内保持原顺序（sort 稳定）
+  const ordered = openBooks.slice().sort((a, b) => (b.pinned ? 1 : 0) - (a.pinned ? 1 : 0));
+  for (const item of ordered) {
     const id = String(item.bookId);
     const row = document.createElement('div');
     row.className = 'rs-item' + (id === currentOpenBookId ? ' current' : '');
@@ -354,7 +354,14 @@ function paintReadSide() {
     meta.className = 'rs-meta';
     const t = document.createElement('div');
     t.className = 'rs-title';
-    t.textContent = item.title || '未命名';
+    if (item.pinned) {
+      const pin = document.createElement('span');
+      pin.className = 'rs-pin';
+      pin.textContent = '▲';
+      pin.title = '已置顶';
+      t.appendChild(pin);
+    }
+    t.appendChild(document.createTextNode(item.title || '未命名'));
     meta.appendChild(t);
     if (item.author) {
       const a = document.createElement('div');
@@ -378,6 +385,10 @@ function paintReadSide() {
       if (id === currentOpenBookId && mode === 'reader') return;
       openBook(item.vm);
     });
+    row.addEventListener('contextmenu', (e) => {
+      e.preventDefault();
+      openSideMenu(item, e.clientX, e.clientY);
+    });
     readSideListEl.appendChild(row);
   }
 }
@@ -393,7 +404,7 @@ function rememberOpenBook(vm) {
     vm: { bookId: vm.bookId, title: vm.title, author: vm.author, cover: vm.cover,
           deepLink: vm.deepLink, readerUrl: vm.readerUrl }
   };
-  // 位置固定：新书追加到末尾；再点已有书只换高亮，列表不跳动
+  // 位置固定：新书追加到末尾；再点已有书只换高亮，列表不跳动；置顶状态跨更新保留
   const idx = openBooks.findIndex(x => x.bookId === id);
   if (idx === -1) {
     openBooks.push(item);
@@ -401,12 +412,49 @@ function rememberOpenBook(vm) {
     currentOpenBookId = id;
     paintReadSide();
   } else {
+    item.pinned = !!openBooks[idx].pinned;
     openBooks[idx] = item;
     saveOpenBooks();
     currentOpenBookId = id;
     updateSidebarHighlight();
   }
 }
+
+// 书桌置顶：置顶书排前（组内保持原顺序），右键菜单切换
+function togglePin(bookId) {
+  const b = openBooks.find(x => x.bookId === String(bookId));
+  if (!b) return;
+  b.pinned = !b.pinned;
+  saveOpenBooks();
+  paintReadSide();
+}
+
+// 书桌右键菜单（复用 .book-menu 样式，一次一个）
+let sideMenuEl = null;
+function closeSideMenu() { if (sideMenuEl) { sideMenuEl.remove(); sideMenuEl = null; } }
+function openSideMenu(item, x, y) {
+  closeSideMenu();
+  const menu = document.createElement('div');
+  menu.className = 'book-menu';
+  const mk = (t, fn) => {
+    const mi = document.createElement('div');
+    mi.className = 'book-menu-item';
+    mi.textContent = t;
+    mi.addEventListener('click', (e) => { e.stopPropagation(); closeSideMenu(); fn(); });
+    menu.appendChild(mi);
+  };
+  mk(item.pinned ? '取消置顶' : '置顶', () => togglePin(item.bookId));
+  mk('查看详情', () => openDetail(item.vm));
+  mk('从书桌移除', () => closeOpenBook(item.bookId));
+  menu.style.left = x + 'px';
+  menu.style.top = y + 'px';
+  document.body.appendChild(menu);
+  sideMenuEl = menu;
+  const r = menu.getBoundingClientRect();
+  if (r.right > window.innerWidth) menu.style.left = (x - r.width) + 'px';
+  if (r.bottom > window.innerHeight) menu.style.top = (y - r.height) + 'px';
+}
+document.addEventListener('click', closeSideMenu);
 
 // 从本地列表移除：销毁保活 webview；若关的是当前，切到下一本或回书架
 function closeOpenBook(bookId) {
@@ -620,27 +668,7 @@ async function refreshShelf() {
   if (mode === 'shelf' && libTab === 'shelf') hideShelf();
 }
 
-// 自动取 Key：spike 发现端点才生效；成功写回 auth.json 的 autoKey。失败静默（走手动兜底）。
-async function tryAutoKey() {
-  if (!AUTO_KEY_ENDPOINT || !webview) return false;
-  try {
-    const js = `fetch(${JSON.stringify(AUTO_KEY_ENDPOINT)}, { credentials: 'include' })`
-      + `.then(r => r.json()).then(j => (j && (j.key || j.apiKey || '')) || '').catch(() => '')`;
-    const key = await webview.executeJavaScript(js);
-    if (key && /^wrk-/.test(key)) {
-      const auth = (await window.wereadPC.readAuth()) || {};
-      auth.autoKey = key;
-      auth.autoKeyAt = Date.now();
-      auth.autoKeyInvalid = false;
-      if (!auth.source) auth.source = 'auto';
-      await window.wereadPC.writeAuth(auth);
-      return true;
-    }
-  } catch (_) { /* 静默：自动取 Key 属尽力而为 */ }
-  return false;
-}
-
-// 统计看板取数：缓存秒开 → （无 Key 先试自动取）→ 后台刷新 → 派生视图模型 → 渲染 → 写缓存
+// 统计看板取数：缓存秒开 → 后台刷新 → 派生视图模型 → 渲染 → 写缓存
 let statsCurDim = 'month';
 let statsVm = null;
 function statsHandlers() {
@@ -665,7 +693,6 @@ async function loadStats() {
     window.StatsView.render(statsEl, statsVm, handlers);
   }
   else window.StatsView.render(statsEl, window.StatsData.buildStatsViewModel({ ok: false }, currentVM, new Date().getFullYear(), statsCurDim), handlers);
-  try { await tryAutoKey(); } catch (_) {}
   let bundle = null;
   try { bundle = await window.wereadPC.fetchStats(); } catch (_) { bundle = null; }
   const year = new Date().getFullYear();
@@ -775,10 +802,24 @@ async function renderSettings() {
       await window.wereadPC.writeAuth(next);
       await renderSettings();
     },
-    onRetryAuto: async () => {
-      await tryAutoKey();
-      await renderSettings();
-      if (libTab === 'stats') loadStats();
+    onLogout: async () => {
+      if (!window.confirm('退出微信读书登录？\n将清除本机登录 Cookie，需重新扫码；统计 API Key 不受影响。')) return;
+      try { await window.wereadPC.logout(); } catch (_) {}
+      // Cookie 已清：销毁全部保活 book webview（旧页面已失效），书桌列表保留，重新登录后点击即重载
+      for (const id of [...bookWebviews.keys()]) destroyBookWebview(id);
+      currentOpenBookId = null;
+      domReady = false;
+      shelfLiveOk = false;
+      closeSettings();
+      setAuthGuide(true);
+      refreshConnStatus();
+      refreshShelf();
+      setStatus('已退出登录，请重新扫码');
+    },
+    onClearCache: async () => {
+      try { await window.wereadPC.clearCache(); } catch (_) {}
+      statsVm = null;
+      setStatus('已清除本地缓存（书架 / 统计 / 详情），下次进入将重新拉取');
     },
     onRefreshStats: () => { closeSettings(); showStats(); }
   });

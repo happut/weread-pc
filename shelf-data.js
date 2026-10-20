@@ -85,7 +85,17 @@
     };
   }
 
-  const api = { buildViewModel, computeStats, buildContinueReading, buildAllBooks, toBookVM, buildProgressMap, readerUrlFromDeepLink };
+  // 本地搜索：按书名/作者子串过滤（大小写不敏感，空白忽略；空 query 原样返回）
+  function filterBooks(books, query) {
+    const q = String(query || '').trim().toLowerCase();
+    if (!q) return (books || []).slice();
+    return (books || []).filter(b =>
+      String(b.title || '').toLowerCase().includes(q) ||
+      String(b.author || '').toLowerCase().includes(q)
+    );
+  }
+
+  const api = { buildViewModel, computeStats, buildContinueReading, buildAllBooks, toBookVM, buildProgressMap, readerUrlFromDeepLink, filterBooks };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.ShelfData = api;
 })(typeof window !== 'undefined' ? window : globalThis);
