@@ -4,6 +4,7 @@ contextBridge.exposeInMainWorld('wereadPC', {
   setPowerSave: (on) => ipcRenderer.invoke('power-save', on),
   forceRerender: () => ipcRenderer.invoke('force-rerender'),
   setWindowWidth: (width) => ipcRenderer.invoke('set-window-width', width),
+  setTheme: (v) => ipcRenderer.invoke('set-theme', v),
   readShelfCache: () => ipcRenderer.invoke('shelf-cache-read'),
   writeShelfCache: (vm) => ipcRenderer.invoke('shelf-cache-write', vm),
   readAuth: () => ipcRenderer.invoke('auth-read'),

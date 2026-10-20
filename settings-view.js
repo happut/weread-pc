@@ -1,4 +1,4 @@
-// settings-view.js — 设置模态渲染（连接状态 / 高级手动 / 缓存 / 隐私）
+// settings-view.js — 设置模态渲染（连接状态 / 外观 / 高级手动 / 缓存 / 隐私）
 // 浏览器：挂 window.SettingsView；node：module.exports。不发请求，只渲染 + 回调 handler。
 (function (root) {
   'use strict';
@@ -24,9 +24,17 @@
     if (src === 'auto') return '自动';
     return '无';
   }
+  function normalizeTheme(v) {
+    return (v === 'light' || v === 'dark') ? v : 'system';
+  }
+  const THEME_OPTIONS = [
+    { value: 'system', label: '跟随系统' },
+    { value: 'light', label: '浅色' },
+    { value: 'dark', label: '深色' }
+  ];
 
-  // model = { mode, source, maskedKey, manualKey, manualCookie }
-  // handlers = { onClose, onSaveManual({key,cookie}), onClearManual, onLogout, onClearCache, onRefreshStats }
+  // model = { mode, source, maskedKey, manualKey, manualCookie, theme }
+  // handlers = { onClose, onSaveManual({key,cookie}), onClearManual, onLogout, onClearCache, onRefreshStats, onThemeChange(value) }
   function render(container, model, handlers) {
     const m = model || {};
     const h = handlers || {};
@@ -61,6 +69,20 @@
     logout.addEventListener('click', function () { h.onLogout && h.onLogout(); });
     sec1.appendChild(logout);
     panel.appendChild(sec1);
+
+    // 外观：三选（main 进程 nativeTheme 生效，仅原生壳 UI）
+    const secTheme = el('div', 'stg-sec');
+    secTheme.appendChild(el('div', 'stg-lbl', '外观'));
+    const tabs = el('div', 'dim-tabs');
+    tabs.style.marginBottom = '0';
+    const cur = normalizeTheme(m.theme);
+    THEME_OPTIONS.forEach(function (opt) {
+      const b = el('button', 'dim-tab' + (opt.value === cur ? ' on' : ''), opt.label);
+      b.addEventListener('click', function () { h.onThemeChange && h.onThemeChange(opt.value); });
+      tabs.appendChild(b);
+    });
+    secTheme.appendChild(tabs);
+    panel.appendChild(secTheme);
 
     // 高级：手动 Key / Cookie
     const sec2 = el('div', 'stg-sec');
@@ -119,7 +141,7 @@
     }
   }
 
-  const api = { el, pillClass, pillText, sourceText, render };
+  const api = { el, pillClass, pillText, sourceText, normalizeTheme, render };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.SettingsView = api;
 })(typeof window !== 'undefined' ? window : globalThis);

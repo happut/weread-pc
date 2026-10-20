@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, powerSaveBlocker, screen, session } = require('electron');
+const { app, BrowserWindow, ipcMain, nativeTheme, powerSaveBlocker, screen, session } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const WereadAuth = require('./weread-auth.js');
@@ -224,6 +224,12 @@ ipcMain.handle('logout', async () => {
     await session.fromPartition('persist:weread').clearStorageData({ storages: ['cookies'] });
     return true;
   } catch (_) { return false; }
+});
+
+// 外观：system/light/dark → nativeTheme，壳页 CSS 的 prefers-color-scheme 随之切换
+ipcMain.handle('set-theme', (_, v) => {
+  nativeTheme.themeSource = (v === 'light' || v === 'dark') ? v : 'system';
+  return nativeTheme.themeSource;
 });
 
 // 清除本地缓存：书架 / 统计 / 书籍详情三个缓存目录整体删除

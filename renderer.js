@@ -83,6 +83,13 @@ try {
 } catch (_) {}
 applyFont();   // 立即刷新工具条上的缩放标签（domReady 前不注入 guest）
 
+// ---- 外观：三选持久化，启动即下发 main 进程 nativeTheme ----
+const THEME_KEY = 'wereadpc.theme';
+function currentTheme() {
+  try { return window.SettingsView.normalizeTheme(localStorage.getItem(THEME_KEY)); } catch (_) { return 'system'; }
+}
+window.wereadPC.setTheme(currentTheme()).catch(() => {});
+
 
 // ---- 翻页：优先点新版底部分页按钮，否则模拟方向键 + 滚动兜底 ----
 const TURN_JS = `
@@ -784,7 +791,8 @@ async function renderSettings() {
     source: resolved.source,
     maskedKey: resolved.key ? window.WereadAuth.maskKey(resolved.key) : '',
     manualKey: auth.manualKey || '',
-    manualCookie: auth.manualCookie || ''
+    manualCookie: auth.manualCookie || '',
+    theme: currentTheme()
   };
   window.SettingsView.render(settingsEl, model, {
     onClose: closeSettings,
@@ -821,7 +829,13 @@ async function renderSettings() {
       statsVm = null;
       setStatus('已清除本地缓存（书架 / 统计 / 详情），下次进入将重新拉取');
     },
-    onRefreshStats: () => { closeSettings(); showStats(); }
+    onRefreshStats: () => { closeSettings(); showStats(); },
+    onThemeChange: async (v) => {
+      const t = window.SettingsView.normalizeTheme(v);
+      try { localStorage.setItem(THEME_KEY, t); } catch (_) {}
+      try { await window.wereadPC.setTheme(t); } catch (_) {}
+      await renderSettings();
+    }
   });
 }
 
