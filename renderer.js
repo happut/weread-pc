@@ -107,8 +107,10 @@ function readerThemeSyncJs(want) {
   // 比对 cookie，不一致则写 cookie + 镜像并 reload 一次（自限）。
   // 写入前必须把 host 级和 domain 级旧 cookie 都清掉再统一写 domain 级：
   // 站点原 cookie 带 domain=.weread.qq.com，若只写 host 级会出现同名双 cookie，
-  // document.cookie 按创建时间排序站点旧的永远在前，首值比对永不收敛 → 无限重载
-  return '(function(){try{var m=document.cookie.match(/(?:^|;\\s*)wr_theme=([^;]*)/);'
+  // document.cookie 按创建时间排序站点旧的永远在前，首值比对永不收敛 → 无限重载。
+  // 阅读页判断放在 guest 内做（location.pathname）：宿主 getURL 在 reload 后可能拿到变化中的地址
+  return '(function(){try{if(location.pathname.indexOf("/web/reader/")===-1)return "skip";'
+    + 'var m=document.cookie.match(/(?:^|;\\s*)wr_theme=([^;]*)/);'
     + 'var cur=m?m[1]:"";'
     + 'if(cur!==' + w + '){'
     + 'var ex="; path=/; max-age=0; expires=Thu, 01 Jan 1970 00:00:00 GMT";'
@@ -117,15 +119,15 @@ function readerThemeSyncJs(want) {
     + 'document.cookie="wr_theme="+' + w + '+"; path=/; domain=.weread.qq.com; max-age=31536000";'
     + 'try{localStorage.setItem("wr_theme",' + w + ');}catch(e){}'
     + 'location.reload();return "reloaded";}'
-    + 'return "ok";}catch(e){return "err";}})()';
+    + 'return "ok";}catch(e){return "err:"+e.message;}})()';
 }
 function applyReaderThemeSync(wv) {
   if (!wv || !syncReaderThemeOn()) return;
-  let url = '';
-  try { url = wv.getURL(); } catch (_) { return; }
-  if (String(url).indexOf('/web/reader/') === -1) return;
   wv.executeJavaScript(readerThemeSyncJs(wrThemeWant()))
-    .then((r) => { if (r === 'reloaded') console.info('[theme-sync] wr_theme →', wrThemeWant()); })
+    .then((r) => {
+      if (r === 'skip' || r === 'ok') return;
+      console.info('[theme-sync] wr_theme →', wrThemeWant(), '(' + r + ')');
+    })
     .catch(() => {});
 }
 function applyReaderThemeSyncAll() {
