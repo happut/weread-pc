@@ -121,14 +121,20 @@ function readerThemeSyncJs(want) {
     + 'location.reload();return "reloaded";}'
     + 'return "ok";}catch(e){return "err:"+e.message;}})()';
 }
+// 每个 webview 对同一目标值只注入一次（reload 后 dom-ready 重置），
+// 避免 onThemeChange 与 dom-ready 等路径并发注入触发重复 reload
+const readerThemeApplied = new WeakMap();
 function applyReaderThemeSync(wv) {
   if (!wv || !syncReaderThemeOn()) return;
-  wv.executeJavaScript(readerThemeSyncJs(wrThemeWant()))
+  const want = wrThemeWant();
+  if (readerThemeApplied.get(wv) === want) return;
+  readerThemeApplied.set(wv, want);
+  wv.executeJavaScript(readerThemeSyncJs(want))
     .then((r) => {
       if (r === 'skip' || r === 'ok') return;
-      console.info('[theme-sync] wr_theme →', wrThemeWant(), '(' + r + ')');
+      console.info('[theme-sync] wr_theme →', want, '(' + r + ')');
     })
-    .catch(() => {});
+    .catch(() => { readerThemeApplied.delete(wv); });
 }
 function applyReaderThemeSyncAll() {
   for (const wv of bookWebviews.values()) applyReaderThemeSync(wv);
@@ -652,7 +658,7 @@ function openBook(vm) {
       waitReaderReady(revealReader, 6000, wv);
     }
   });
-  wv.addEventListener('dom-ready', () => { applyReaderThemeSync(wv); });
+  wv.addEventListener('dom-ready', () => { readerThemeApplied.delete(wv); applyReaderThemeSync(wv); });
   wv.addEventListener('did-fail-load', (e) => {
     if (e && e.isMainFrame === false) return;   // 子帧失败不打扰
     if (currentOpenBookId !== id) return;
