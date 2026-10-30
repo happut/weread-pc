@@ -1,12 +1,14 @@
 {
   "name": "weread-pc",
-  "version": "0.7.0",
+  "version": "0.8.0",
   "description": "WeRead PC client based on Electron + webview",
   "license": "MIT",
   "main": "main.js",
   "scripts": {
     "start": "electron .",
-    "build": "bash build.sh"
+    "build": "bash build.sh",
+    "build:all": "bash build.sh --all",
+    "test": "node --test test/*.test.js"
   },
   "devDependencies": {
     "electron": "^33.0.0"
