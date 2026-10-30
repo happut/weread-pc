@@ -104,6 +104,8 @@ function createWindow() {
     minWidth: 900,
     minHeight: 600,
     title: 'WeRead PC',
+    // Windows/Linux 窗口与任务栏图标；macOS 用 .icns（忽略此项）
+    icon: path.join(__dirname, 'assets', 'icons', 'icon-b-cat-book-512.png'),
     // 去掉系统标题栏，红绿灯嵌进左侧栏头部（隐藏 inset）
     titleBarStyle: 'hiddenInset',
     trafficLightPosition: { x: 14, y: 16 },
