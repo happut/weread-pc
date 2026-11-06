@@ -298,20 +298,58 @@
     .ag-status { font-size: 12px; color: var(--text-dim); margin-top: 8px; }
     .ag-status.ok { color: var(--ok); }
 
-    /* 侧栏底部连接状态 */
+    /* 侧栏阅读时长卡片：今日/本周/本月三列（折叠态隐藏） */
+    .side-rt {
+      flex: none; margin: 4px 8px 8px; padding: 8px;
+      background: var(--bg-card); border: 1px solid var(--soft); border-radius: 10px;
+      box-shadow: 0 1px 3px rgba(16,18,24,.05);
+    }
+    .side-rt .rt-head {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 0 2px 6px;
+    }
+    .side-rt .rt-head span { font-size: 11px; color: var(--text-dim); letter-spacing: .3px; }
+    .side-rt .rt-head button {
+      width: 22px; height: 22px; padding: 0; border: none; border-radius: 6px;
+      background: transparent; box-shadow: none; color: var(--text-dim); cursor: pointer;
+    }
+    .side-rt .rt-head button:hover { background: var(--hover); color: var(--accent); }
+    .side-rt .rt-head button[disabled] { opacity: .45; cursor: default; }
+    .side-rt .rt-grid { display: flex; gap: 4px; }
+    .side-rt .rt-cell {
+      flex: 1; min-width: 0; text-align: center; padding: 6px 2px 5px;
+      background: var(--bg-page); border-radius: 8px;
+    }
+    .side-rt .rt-cell b {
+      display: block; font-size: 12.5px; font-weight: 700; color: var(--text);
+      font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .side-rt .rt-cell.today b { color: var(--accent); }
+    .side-rt .rt-cell span { display: block; font-size: 10px; color: var(--text-dim); margin-top: 2px; }
+    body.side-collapsed .side-rt { display: none; }
+
+    /* 侧栏底部连接状态：并排两枚小徽章 */
+    .conn-wrap { flex: none; display: flex; gap: 6px; padding: 0 8px 10px; }
     .conn-line {
-      display: flex; align-items: center; gap: 6px;
-      font-size: 11px; color: var(--text-dim); padding: 2px 12px;
+      flex: 1; min-width: 0; display: flex; align-items: center; justify-content: center; gap: 5px;
+      font-size: 11px; color: var(--text-dim);
+      background: var(--bg-card); border: 1px solid var(--soft); border-radius: 8px;
+      padding: 5px 4px;
     }
     .conn-line .dot {
-      width: 7px; height: 7px; border-radius: 50%; background: #c5cad3; flex: none;
+      width: 6px; height: 6px; border-radius: 50%; background: #c5cad3; flex: none;
     }
+    .conn-line.ok { color: var(--ok); background: var(--bg-done); border-color: transparent; }
     .conn-line.ok .dot { background: #239a3b; }
-    .conn-line.ok { color: var(--ok); }
     .conn-line button {
-      margin-left: auto; border: none; background: transparent; box-shadow: none;
+      border: none; background: transparent; box-shadow: none;
       color: var(--accent); font-size: 11px; padding: 0; height: auto; cursor: pointer;
     }
+    /* 折叠态：徽章只留状态点，竖排 */
+    body.side-collapsed .conn-wrap { flex-direction: column; gap: 4px; padding: 0 10px 8px; }
+    body.side-collapsed .conn-line { padding: 6px 0; }
+    body.side-collapsed .conn-line span:not(.dot),
+    body.side-collapsed .conn-line button { display: none; }
 
     /* ===== 原生书架覆盖层（方向2 清爽网格）===== */
     #shelf {
@@ -590,7 +628,9 @@
     <div class="group">
       <span id="status"></span>
       <button id="singlePageBtn" class="ghost" title="切换单页模式：窗口调到约 1000px 消除双页中缝，再点恢复原宽度">单页</button>
-      <button id="rerenderBtn" class="ghost icon-only" title="跨屏拖动后正文错位时，点此强制重新排版">⟳</button>
+      <button id="rerenderBtn" class="icon-btn" title="跨屏拖动后正文错位时，点此强制重新排版">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"></polyline><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path></svg>
+      </button>
     </div>
   </div>
   <div id="wrap" data-page-node-id="ZsOtHB5CM0U8vtMH9SotTI">
@@ -603,8 +643,20 @@
     </div>
     <button class="rs-handle" id="rsHandle" title="折叠/展开侧栏">⟨</button>
     <div class="rs-list" id="readSideList"></div>
-    <div class="conn-line" id="connShelf"><span class="dot"></span><span>书架</span><button type="button" data-act="login">去登录</button></div>
-    <div class="conn-line" id="connStats"><span class="dot"></span><span>统计</span><button type="button" data-act="key">去开通</button></div>
+    <div class="side-rt" id="sideReadTime" hidden>
+      <div class="rt-head"><span>阅读时长</span><button id="rtRefresh" type="button" title="立即刷新阅读时长">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"></polyline><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path></svg>
+      </button></div>
+      <div class="rt-grid">
+        <div class="rt-cell today"><b id="rtToday">0m</b><span>今日</span></div>
+        <div class="rt-cell"><b id="rtWeek">0m</b><span>本周</span></div>
+        <div class="rt-cell"><b id="rtMonth">0m</b><span>本月</span></div>
+      </div>
+    </div>
+    <div class="conn-wrap">
+      <div class="conn-line" id="connShelf"><span class="dot"></span><span>书架</span><button type="button" data-act="login">去登录</button></div>
+      <div class="conn-line" id="connStats"><span class="dot"></span><span>统计</span><button type="button" data-act="key">去开通</button></div>
+    </div>
     <nav class="side-nav">
       <button id="navShelf" class="active" title="书架"><span class="nav-ico">📚</span><span class="nav-label">书架</span></button>
       <button id="navStats" title="我的 · 阅读统计"><span class="nav-ico">👤</span><span class="nav-label">我的</span></button>

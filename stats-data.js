@@ -202,6 +202,22 @@
     };
   }
 
+  // ⑦ 侧栏阅读时长：从看板 VM 派生 今日/本周/本月，不额外请求
+  // 今日按日期 key 匹配（缓存里的 isCurrent 可能指向旧日期）；月格没覆盖到就查周格，都没有计 0
+  function buildSideReadTime(vm, todayStr) {
+    if (!vm || !vm.connected) return null;
+    const today = todayStr || localDay(new Date());
+    const byDim = vm.cellsByDim || {};
+    const cell = (byDim.month || []).find(c => c.key === today) || (byDim.week || []).find(c => c.key === today);
+    const m = vm.metricByDim || {};
+    return {
+      todayText: cell ? cell.text : '0m',
+      weekText: (m.week && m.week.totalText) || '0m',
+      monthText: (m.month && m.month.totalText) || '0m',
+      fetchedAt: vm.fetchedAt || null
+    };
+  }
+
   // 切维度：浅拷贝换 dim/metric/cells（缓存 vm 也适用）
   function withDim(vm, dim) {
     const d = normDim(dim);
@@ -214,7 +230,7 @@
   const api = {
     levelOf, levelOfMonth, secToHours, secToHours1, fmtDur, localDay, dayBefore,
     buildMonthHeat, buildDayHeat, buildWeekDays, buildMetric,
-    buildPreference, buildTopBooks, buildStreak, dedupeMedals, buildStatsViewModel, withDim
+    buildPreference, buildTopBooks, buildStreak, dedupeMedals, buildStatsViewModel, withDim, buildSideReadTime
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.StatsData = api;

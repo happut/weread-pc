@@ -753,6 +753,7 @@ async function loadStats() {
   if (cached) {
     statsVm = window.StatsData.withDim(cached, statsCurDim);
     window.StatsView.render(statsEl, statsVm, handlers);
+    paintSideReadTime(statsVm);
   }
   else window.StatsView.render(statsEl, window.StatsData.buildStatsViewModel({ ok: false }, currentVM, new Date().getFullYear(), statsCurDim), handlers);
   let bundle = null;
@@ -760,8 +761,56 @@ async function loadStats() {
   const year = new Date().getFullYear();
   statsVm = window.StatsData.buildStatsViewModel(bundle || { ok: false }, currentVM, year, statsCurDim);
   window.StatsView.render(statsEl, statsVm, handlers);
+  paintSideReadTime(statsVm);
   if (bundle && bundle.ok) { try { await window.wereadPC.writeStatsCache(statsVm); } catch (_) {} }
 }
+
+// ---- 侧栏阅读时长（今日/本周/本月）：复用统计缓存，间隔到期才拉网络；⟳ 手动强制刷新 ----
+const RT_INTERVAL_KEY = 'wereadpc.rtInterval';
+const sideRtEl = document.getElementById('sideReadTime');
+const rtRefreshBtn = document.getElementById('rtRefresh');
+let sideRtFetching = false;
+let sideRtTimer = null;
+function rtIntervalMinutes() {
+  try { return window.SettingsView.normalizeRtInterval(localStorage.getItem(RT_INTERVAL_KEY)); } catch (_) { return 30; }
+}
+function startSideRtTimer() {
+  if (sideRtTimer) clearInterval(sideRtTimer);
+  sideRtTimer = setInterval(refreshSideReadTime, rtIntervalMinutes() * 60 * 1000);
+}
+function paintSideReadTime(vm) {
+  if (!sideRtEl) return;
+  const rt = window.StatsData.buildSideReadTime(vm);
+  if (!rt) { sideRtEl.hidden = true; return; }
+  sideRtEl.hidden = false;
+  document.getElementById('rtToday').textContent = rt.todayText;
+  document.getElementById('rtWeek').textContent = rt.weekText;
+  document.getElementById('rtMonth').textContent = rt.monthText;
+  sideRtEl.title = rt.fetchedAt
+    ? '阅读时长 · 更新于 ' + new Date(rt.fetchedAt).toLocaleString()
+    : '阅读时长';
+}
+async function refreshSideReadTime(force) {
+  if (sideRtFetching) return;
+  let cached = null;
+  try { cached = await window.wereadPC.readStatsCache(); } catch (_) { cached = null; }
+  if (cached) paintSideReadTime(cached);
+  if (!force && cached && cached.fetchedAt && (Date.now() - cached.fetchedAt) < rtIntervalMinutes() * 60 * 1000) return;
+  sideRtFetching = true;
+  if (rtRefreshBtn) rtRefreshBtn.disabled = true;
+  try {
+    const bundle = await window.wereadPC.fetchStats();
+    if (bundle && bundle.ok) {
+      const vm = window.StatsData.buildStatsViewModel(bundle, currentVM, new Date().getFullYear(), statsCurDim);
+      paintSideReadTime(vm);
+      try { await window.wereadPC.writeStatsCache(vm); } catch (_) {}
+    }
+  } catch (_) {}
+  sideRtFetching = false;
+  if (rtRefreshBtn) rtRefreshBtn.disabled = false;
+}
+if (rtRefreshBtn) rtRefreshBtn.addEventListener('click', () => refreshSideReadTime(true));
+startSideRtTimer();
 
 // ---- 详情侧栏 ----
 const DETAIL_TTL = 7 * 24 * 3600 * 1000;   // 7 天
@@ -848,7 +897,8 @@ async function renderSettings() {
     manualKey: auth.manualKey || '',
     manualCookie: auth.manualCookie || '',
     theme: currentTheme(),
-    syncReaderTheme: syncReaderThemeOn()
+    syncReaderTheme: syncReaderThemeOn(),
+    rtInterval: rtIntervalMinutes()
   };
   window.SettingsView.render(settingsEl, model, {
     onClose: closeSettings,
@@ -883,6 +933,7 @@ async function renderSettings() {
     onClearCache: async () => {
       try { await window.wereadPC.clearCache(); } catch (_) {}
       statsVm = null;
+      paintSideReadTime(null);
       setStatus('已清除本地缓存（书架 / 统计 / 详情），下次进入将重新拉取');
     },
     onRefreshStats: () => { closeSettings(); showStats(); },
@@ -896,6 +947,12 @@ async function renderSettings() {
     onSyncReaderThemeChange: async (checked) => {
       try { localStorage.setItem(SYNC_READER_THEME_KEY, checked ? '1' : '0'); } catch (_) {}
       if (checked) applyReaderThemeSyncAll();
+      await renderSettings();
+    },
+    onRtIntervalChange: async (v) => {
+      const mins = window.SettingsView.normalizeRtInterval(v);
+      try { localStorage.setItem(RT_INTERVAL_KEY, String(mins)); } catch (_) {}
+      startSideRtTimer();
       await renderSettings();
     }
   });
@@ -1223,6 +1280,7 @@ function bindAuthGuide() {
   loadOpenBooks();
   paintReadSide();
   bindAuthGuide();
+  refreshSideReadTime();   // 侧栏阅读时长：缓存秒显，过期才拉网络
   let cached = null;
   try { cached = await window.wereadPC.readShelfCache(); } catch (_) { cached = null; }
   let auth = null;

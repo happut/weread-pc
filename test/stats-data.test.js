@@ -200,3 +200,41 @@ test('withDim: 切周/年只换 dim/metric/cells，其余字段不变', () => {
   assert.strictEqual(y.streak.readDays, s.streak.readDays);
   assert.strictEqual(S.withDim(y, 'bogus').dim, 'month');
 });
+
+test('buildSideReadTime: 今日按日期 key 匹配，周/月取 totals', () => {
+  const vm = {
+    connected: true, fetchedAt: 123,
+    metricByDim: { week: S.buildMetric(bundle.totals, 'week'), month: S.buildMetric(bundle.totals, 'month') },
+    cellsByDim: {
+      week: S.buildWeekDays(bundle.weekDaily, '2026-09-24'),
+      month: S.buildDayHeat(bundle.daily, 2026, 1, '2026-01-05')
+    }
+  };
+  const rt = S.buildSideReadTime(vm, '2026-01-03');
+  assert.strictEqual(rt.todayText, '1h');
+  assert.strictEqual(rt.weekText, '5h');
+  assert.strictEqual(rt.monthText, '40h');
+  assert.strictEqual(rt.fetchedAt, 123);
+});
+
+test('buildSideReadTime: 月格未覆盖今日（跨月缓存）回退周格', () => {
+  const vm = {
+    connected: true,
+    metricByDim: { week: S.buildMetric(bundle.totals, 'week'), month: S.buildMetric(bundle.totals, 'month') },
+    cellsByDim: {
+      week: S.buildWeekDays(bundle.weekDaily, '2026-09-24'),
+      month: S.buildDayHeat(bundle.daily, 2026, 1, '2026-01-05')
+    }
+  };
+  assert.strictEqual(S.buildSideReadTime(vm, '2026-09-24').todayText, '1h');
+});
+
+test('buildSideReadTime: 未连接返回 null；今日无数据计 0', () => {
+  assert.strictEqual(S.buildSideReadTime(null), null);
+  assert.strictEqual(S.buildSideReadTime({ connected: false }), null);
+  const vm = { connected: true, metricByDim: {}, cellsByDim: { week: [], month: [] } };
+  const rt = S.buildSideReadTime(vm, '2026-01-03');
+  assert.strictEqual(rt.todayText, '0m');
+  assert.strictEqual(rt.weekText, '0m');
+  assert.strictEqual(rt.monthText, '0m');
+});

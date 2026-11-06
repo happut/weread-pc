@@ -27,6 +27,12 @@
   function normalizeTheme(v) {
     return (v === 'light' || v === 'dark') ? v : 'system';
   }
+  // 侧栏阅读时长刷新间隔（分钟）：5–240，非法回落 30
+  function normalizeRtInterval(v) {
+    const n = parseInt(v, 10);
+    if (!isFinite(n)) return 30;
+    return Math.min(240, Math.max(5, n));
+  }
   // 阅读器 guest 页自带主题键 wr_theme 只取 white/dark（站点 bundle 常量），
   // 写它等于点站点自己的夜间按钮，不注入 CSS
   function wrThemeFor(theme, systemDark) {
@@ -40,8 +46,8 @@
     { value: 'dark', label: '深色' }
   ];
 
-  // model = { mode, source, maskedKey, manualKey, manualCookie, theme, syncReaderTheme }
-  // handlers = { onClose, onSaveManual({key,cookie}), onClearManual, onLogout, onClearCache, onRefreshStats, onThemeChange(value), onSyncReaderThemeChange(checked) }
+  // model = { mode, source, maskedKey, manualKey, manualCookie, theme, syncReaderTheme, rtInterval }
+  // handlers = { onClose, onSaveManual({key,cookie}), onClearManual, onLogout, onClearCache, onRefreshStats, onThemeChange(value), onSyncReaderThemeChange(checked), onRtIntervalChange(minutes) }
   function render(container, model, handlers) {
     const m = model || {};
     const h = handlers || {};
@@ -133,6 +139,17 @@
     cc.title = '删除书架 / 统计 / 书籍详情缓存，下次打开重新拉取';
     cc.addEventListener('click', function () { h.onClearCache && h.onClearCache(); });
     sec3.appendChild(cc);
+    const rtRow = el('div');
+    rtRow.style.cssText = 'display:flex;align-items:center;gap:6px;margin-top:12px;font-size:12px;color:var(--text-mid);';
+    rtRow.appendChild(el('span', null, '侧栏阅读时长刷新间隔'));
+    const rtIn = el('input');
+    rtIn.type = 'number'; rtIn.min = '5'; rtIn.max = '240'; rtIn.step = '5';
+    rtIn.value = String(normalizeRtInterval(m.rtInterval));
+    rtIn.style.cssText = 'width:64px;margin:0;padding:4px 6px;border:1px solid var(--bar-border);border-radius:6px;font-size:12px;font-family:inherit;text-align:center;color:var(--text);background:var(--bg-card);';
+    rtIn.addEventListener('change', function () { h.onRtIntervalChange && h.onRtIntervalChange(rtIn.value); });
+    rtRow.appendChild(rtIn);
+    rtRow.appendChild(el('span', null, '分钟（5–240）'));
+    sec3.appendChild(rtRow);
     const note = el('div', 'stg-lbl', '统计与书籍详情会自动缓存，每次成功取数覆盖旧值。');
     note.style.marginTop = '8px';
     sec3.appendChild(note);
@@ -155,7 +172,7 @@
     }
   }
 
-  const api = { el, pillClass, pillText, sourceText, normalizeTheme, wrThemeFor, render };
+  const api = { el, pillClass, pillText, sourceText, normalizeTheme, normalizeRtInterval, wrThemeFor, render };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.SettingsView = api;
 })(typeof window !== 'undefined' ? window : globalThis);
