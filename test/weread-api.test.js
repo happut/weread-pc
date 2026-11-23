@@ -6,6 +6,8 @@ const overall = require('./fixtures/readdata-overall.json');
 const bookInfo = require('./fixtures/book-info.json');
 const bookProgress = require('./fixtures/book-progress.json');
 const reviewList = require('./fixtures/review-list.json');
+const notebooks = require('./fixtures/user-notebooks.json');
+const mineList = require('./fixtures/review-list-mine.json');
 
 test('buildGatewayBody: api_name+skill_version+参数平铺，不嵌套 params', () => {
   const b = api.buildGatewayBody('/readdata/detail', { mode: 'annually' });
@@ -111,4 +113,26 @@ test('assembleBookBundle: 三部分合成，myReviews 恒空数组', () => {
   );
   assert.strictEqual(b.ok, true);
   assert.deepStrictEqual(b.myReviews, []);
+});
+
+test('pickIdentityBookId: 取第一条 reviewCount>0 的 bookId（只有点评回包带 author）', () => {
+  assert.strictEqual(api.pickIdentityBookId(notebooks), '3001002');
+});
+
+test('pickIdentityBookId: 全是 reviewCount=0 或回包为空 → 空串', () => {
+  assert.strictEqual(api.pickIdentityBookId({ books: [{ bookId: '1', reviewCount: 0 }] }), '');
+  assert.strictEqual(api.pickIdentityBookId({ books: [] }), '');
+  assert.strictEqual(api.pickIdentityBookId(null), '');
+});
+
+test('normalizeIdentity: reviews[].review.author → 昵称/头像/资深会员标记', () => {
+  assert.deepStrictEqual(api.normalizeIdentity(mineList), {
+    name: '测试昵称', avatar: 'https://thirdwx.qlogo.cn/example/132', deepV: true, deepVTitle: '资深会员'
+  });
+});
+
+test('normalizeIdentity: 无 author 或回包为空 → null', () => {
+  assert.strictEqual(api.normalizeIdentity({ reviews: [{ review: { content: 'x' } }] }), null);
+  assert.strictEqual(api.normalizeIdentity({ reviews: [] }), null);
+  assert.strictEqual(api.normalizeIdentity(null), null);
 });

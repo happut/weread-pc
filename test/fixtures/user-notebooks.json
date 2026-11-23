@@ -1,0 +1,32 @@
+{
+  "errcode": 0,
+  "totalBookCount": 3,
+  "totalNoteCount": 128,
+  "hasMore": 0,
+  "books": [
+    {
+      "bookId": "3001001",
+      "reviewCount": 0,
+      "noteCount": 40,
+      "bookmarkCount": 3,
+      "sort": 1760000000,
+      "book": { "title": "只有划线的书", "author": "作者甲", "cover": "https://cdn.example/cover1.jpg" }
+    },
+    {
+      "bookId": "3001002",
+      "reviewCount": 5,
+      "noteCount": 12,
+      "bookmarkCount": 1,
+      "sort": 1759000000,
+      "book": { "title": "有想法的书", "author": "作者乙", "cover": "https://cdn.example/cover2.jpg" }
+    },
+    {
+      "bookId": "3001003",
+      "reviewCount": 2,
+      "noteCount": 0,
+      "bookmarkCount": 0,
+      "sort": 1758000000,
+      "book": { "title": "只有想法的书", "author": "作者丙", "cover": "https://cdn.example/cover3.jpg" }
+    }
+  ]
+}

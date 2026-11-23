@@ -196,6 +196,25 @@ function assembleBookBundle(info, progress, reviews) {
   };
 }
 
+// 自己的昵称/头像只在「个人点评」回包里出现，而 /review/list/mine 必须指定一本书；
+// 划线（noteCount）不产生点评，所以只能挑 reviewCount>0 的书，否则拿不到身份。
+function pickIdentityBookId(notebooksJson) {
+  const books = (notebooksJson && notebooksJson.books) || [];
+  const hit = books.find(b => b && Number(b.reviewCount) > 0 && b.bookId);
+  return hit ? String(hit.bookId) : '';
+}
+
+// /review/list/mine 回包里的 author 就是当前账号自己
+function normalizeIdentity(json) {
+  const list = (json && json.reviews) || [];
+  for (const w of list) {
+    const a = (w && w.review && w.review.author) || null;
+    if (!a || (!a.name && !a.avatar)) continue;
+    return { name: a.name || '', avatar: a.avatar || '', deepV: !!a.isDeepV, deepVTitle: a.deepVTitle || '' };
+  }
+  return null;
+}
+
 // ---- 网络（不写单测）----
 // depth：防递归死循环（版本跳转最多重试 1 次）
 async function gatewayFetch(key, apiName, params, version, depth) {
@@ -247,11 +266,21 @@ async function fetchBookBundle(key, bookId) {
   return assembleBookBundle(info, progress, reviews);
 }
 
+// 两次调用换一次身份：笔记本概览挑一本有点评的书 → 取该书的个人点评作者（即自己）
+async function fetchIdentity(key) {
+  const notebooks = await gatewayFetch(key, '/user/notebooks', { count: 50 }).catch(() => null);
+  const bookId = pickIdentityBookId(notebooks);
+  if (!bookId) return null;
+  const mine = await gatewayFetch(key, '/review/list/mine', { bookid: bookId, count: 5 }).catch(() => null);
+  return normalizeIdentity(mine);
+}
+
 module.exports = {
   GATEWAY, SKILL_VERSION,
   buildGatewayBody, pickError, nextSkillVersion, hasBusinessPayload, getSkillVersion,
   toDailyMap, toMonthMap, toYearMap,
   normalizeReaddataOne, assembleStatsBundle,
   normalizeBookInfo, normalizeProgress, normalizeReviews, assembleBookBundle,
-  gatewayFetch, fetchStatsBundle, fetchBookBundle
+  pickIdentityBookId, normalizeIdentity,
+  gatewayFetch, fetchStatsBundle, fetchBookBundle, fetchIdentity
 };

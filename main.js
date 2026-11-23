@@ -86,6 +86,7 @@ function ensureShelfCacheDir() {
 const AUTH_PATH = path.join(app.getPath('userData'), 'auth.json');
 const STATS_CACHE_DIR = path.join(app.getPath('userData'), 'stats-cache');
 const BOOK_CACHE_DIR = path.join(app.getPath('userData'), 'book-cache');
+const IDENTITY_PATH = path.join(app.getPath('userData'), 'identity.json');
 function ensureDir(d) { try { fs.mkdirSync(d, { recursive: true }); } catch (_) {} }
 function readJson(p) { try { return fs.existsSync(p) ? JSON.parse(fs.readFileSync(p, 'utf8')) : null; } catch (_) { return null; } }
 function writeJson(p, v) { try { fs.writeFileSync(p, JSON.stringify(v), 'utf8'); return true; } catch (_) { return false; } }
@@ -234,14 +235,19 @@ ipcMain.handle('set-theme', (_, v) => {
   return nativeTheme.themeSource;
 });
 
-// 清除本地缓存：书架 / 统计 / 书籍详情三个缓存目录整体删除
+// 清除本地缓存：书架 / 统计 / 书籍详情 / 身份四个缓存整体删除
 ipcMain.handle('clear-cache', () => {
   let ok = true;
   for (const dir of [SHELF_CACHE_DIR, STATS_CACHE_DIR, BOOK_CACHE_DIR]) {
     try { fs.rmSync(dir, { recursive: true, force: true }); } catch (_) { ok = false; }
   }
+  try { fs.rmSync(IDENTITY_PATH, { force: true }); } catch (_) { ok = false; }
   return ok;
 });
+
+// 侧栏身份条缓存（昵称/头像/资深会员），几乎不变，单独一个文件
+ipcMain.handle('identity-cache-read', () => readJson(IDENTITY_PATH));
+ipcMain.handle('identity-cache-write', (_, vm) => writeJson(IDENTITY_PATH, vm));
 
 // 统计缓存（看板视图模型）
 ipcMain.handle('stats-cache-read', () => readJson(path.join(STATS_CACHE_DIR, 'stats.json')));
@@ -269,6 +275,17 @@ ipcMain.handle('weread-fetch-book', async (_, bookId) => {
   const r = resolveCurrentAuth();
   if (r.mode !== 'key') return { ok: false, reason: 'no-key' };
   try { return await WereadApi.fetchBookBundle(r.key, String(bookId)); }
+  catch (e) { return { ok: false, reason: 'fetch-failed', message: String((e && e.message) || e) }; }
+});
+
+// 自己的昵称/头像只能从个人点评回包的 author 取；一条点评都没有时确实取不到
+ipcMain.handle('weread-fetch-identity', async () => {
+  const r = resolveCurrentAuth();
+  if (r.mode !== 'key') return { ok: false, reason: 'no-key' };
+  try {
+    const identity = await WereadApi.fetchIdentity(r.key);
+    return identity ? { ok: true, identity, fetchedAt: Date.now() } : { ok: false, reason: 'no-identity' };
+  }
   catch (e) { return { ok: false, reason: 'fetch-failed', message: String((e && e.message) || e) }; }
 });
 

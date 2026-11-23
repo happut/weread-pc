@@ -81,11 +81,16 @@
     }
     card.appendChild(cover);
     card.appendChild(el('div', 'book-title', vm.title));
-    const bar = el('div', 'pbar');
+    const bar = el('div', 'pbar' + (vm.finished ? ' pbar-done' : ''));
     const fill = el('i');
     fill.style.width = Math.max(0, Math.min(100, vm.progress || 0)) + '%';
     bar.appendChild(fill);
     card.appendChild(bar);
+    if (vm.finished) {
+      const badge = el('span', 'done-badge', '✓ 已读完');
+      badge.title = '已读完';
+      cover.appendChild(badge);
+    }
     // hover ⋯：右键的可发现入口
     const more = el('button', 'book-more', '⋯');
     more.title = '更多';
@@ -194,6 +199,15 @@
     imgs.forEach(img => { img.src = img.dataset.src; img.removeAttribute('data-src'); });
   };
 
+  // 状态筛选（跨 render 保持）：全部 / 在读 / 已读完
+  const STATUS_OPTIONS = [
+    { key: 'all', label: '全部' },
+    { key: 'reading', label: '在读' },
+    { key: 'finished', label: '已读完' }
+  ];
+  const STATUS_TITLE = { all: '全部藏书', reading: '在读', finished: '已读完' };
+  let statusFilter = 'all';
+
   // 主渲染入口：把视图模型画进 container
   function render(container, vm, handlers) {
     if (container._grid) { container._grid.destroy(); container._grid = null; }
@@ -224,21 +238,38 @@
       continueSec.appendChild(row);
       body.appendChild(continueSec);
     }
-    const allSub = el('div', 'shelf-subhead', '全部藏书 · ' + vm.allBooks.length + ' 本');
-    body.appendChild(allSub);
+    const subRow = el('div', 'shelf-subrow');
+    const allSub = el('div', 'shelf-subhead');
+    subRow.appendChild(allSub);
+    const seg = el('div', 'shelf-filter');
+    const segBtns = {};
+    STATUS_OPTIONS.forEach(o => {
+      const b = el('button', 'shelf-filter-btn', o.label);
+      b.dataset.status = o.key;
+      b.addEventListener('click', () => { statusFilter = o.key; applyList(); });
+      segBtns[o.key] = b;
+      seg.appendChild(b);
+    });
+    subRow.appendChild(seg);
+    body.appendChild(subRow);
     const viewport = el('div', 'grid-viewport');
     body.appendChild(viewport);
     container.appendChild(body);
-    container._grid = new VirtualGrid(viewport, vm.allBooks, { onOpen: handlers.onOpen, onDetail: handlers.onDetail });
-    search.addEventListener('input', () => {
+    container._grid = new VirtualGrid(viewport, [], { onOpen: handlers.onOpen, onDetail: handlers.onDetail });
+    function applyList() {
       const q = search.value;
-      const list = root.ShelfData ? root.ShelfData.filterBooks(vm.allBooks, q) : vm.allBooks;
-      allSub.textContent = q.trim()
-        ? '搜索结果 · ' + list.length + ' 本'
-        : '全部藏书 · ' + vm.allBooks.length + ' 本';
-      if (continueSec) continueSec.style.display = q.trim() ? 'none' : '';
+      let list = vm.allBooks;
+      if (root.ShelfData) {
+        list = root.ShelfData.filterByStatus(list, statusFilter);
+        list = root.ShelfData.filterBooks(list, q);
+      }
+      STATUS_OPTIONS.forEach(o => segBtns[o.key].classList.toggle('active', o.key === statusFilter));
+      allSub.textContent = (q.trim() ? '搜索结果' : STATUS_TITLE[statusFilter]) + ' · ' + list.length + ' 本';
+      if (continueSec) continueSec.style.display = (q.trim() || statusFilter !== 'all') ? 'none' : '';
       container._grid.setItems(list);
-    });
+    }
+    search.addEventListener('input', applyList);
+    applyList();
   }
 
   function pill(cls, text) {

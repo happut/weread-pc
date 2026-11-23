@@ -40,6 +40,31 @@ test('toBookVM: 携带 readingTime（④退化）与 category（③退化）', (
   assert.strictEqual(b1.category, '');      // fixture 无 category → 空串不报错
 });
 
+test('finished: finishReading=1 或 progress>=100 视为读完', () => {
+  const vm = buildViewModel(raw);
+  assert.strictEqual(vm.allBooks.find(b => b.bookId === 'b2').finished, true);
+  assert.strictEqual(vm.allBooks.find(b => b.bookId === 'b1').finished, false);
+  assert.strictEqual(vm.allBooks.find(b => b.bookId === 'b3').finished, false);
+  const { toBookVM } = require('../shelf-data.js');
+  // 仅标记读完、进度未到 100
+  assert.strictEqual(toBookVM({ bookId: 'x', finishReading: 1 }, { progress: 80 }).finished, true);
+  // 未标记但进度到 100
+  assert.strictEqual(toBookVM({ bookId: 'y', finishReading: 0 }, { progress: 100 }).finished, true);
+  // 无进度记录
+  assert.strictEqual(toBookVM({ bookId: 'z' }, null).finished, false);
+});
+
+test('filterByStatus: all/reading/finished 三态筛选', () => {
+  const { filterByStatus } = require('../shelf-data.js');
+  const vm = buildViewModel(raw);
+  assert.strictEqual(filterByStatus(vm.allBooks, 'all').length, 4);
+  // b1 progress 40 未读完；b4 progress 0、b3 无进度 → 都不算在读
+  assert.deepStrictEqual(filterByStatus(vm.allBooks, 'reading').map(b => b.bookId), ['b1']);
+  assert.deepStrictEqual(filterByStatus(vm.allBooks, 'finished').map(b => b.bookId), ['b2']);
+  assert.deepStrictEqual(filterByStatus(null, 'finished'), []);
+  assert.deepStrictEqual(filterByStatus(vm.allBooks, 'bogus').length, 4);
+});
+
 test('filterBooks: 按书名/作者子串过滤，大小写不敏感', () => {
   const { filterBooks } = require('../shelf-data.js');
   const books = [

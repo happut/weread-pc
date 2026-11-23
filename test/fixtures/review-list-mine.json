@@ -1,0 +1,41 @@
+{
+  "errcode": 0,
+  "totalCount": 2,
+  "hasMore": 0,
+  "synckey": 0,
+  "reviews": [
+    {
+      "review": {
+        "reviewId": "mine-1",
+        "content": "这段写得挺实在。",
+        "abstract": "原文片段",
+        "range": "120-160",
+        "chapterUid": 3,
+        "createTime": 1759000000,
+        "star": 0,
+        "author": {
+          "userVid": 10000001,
+          "name": "测试昵称",
+          "avatar": "https://thirdwx.qlogo.cn/example/132",
+          "isDeepV": true,
+          "deepVTitle": "资深会员",
+          "signature": "签名不参与展示"
+        }
+      }
+    },
+    {
+      "review": {
+        "reviewId": "mine-2",
+        "content": "第二条想法",
+        "createTime": 1759000100,
+        "author": {
+          "userVid": 10000001,
+          "name": "测试昵称",
+          "avatar": "https://thirdwx.qlogo.cn/example/132",
+          "isDeepV": false,
+          "deepVTitle": ""
+        }
+      }
+    }
+  ]
+}

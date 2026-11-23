@@ -791,6 +791,7 @@ function paintSideReadTime(vm) {
     : '阅读时长';
 }
 async function refreshSideReadTime(force) {
+  refreshSideIdentity(force).catch(() => {});   // 身份条独立 TTL，只共用这一个刷新入口
   if (sideRtFetching) return;
   let cached = null;
   try { cached = await window.wereadPC.readStatsCache(); } catch (_) { cached = null; }
@@ -811,6 +812,45 @@ async function refreshSideReadTime(force) {
 }
 if (rtRefreshBtn) rtRefreshBtn.addEventListener('click', () => refreshSideReadTime(true));
 startSideRtTimer();
+
+// ---- 侧栏身份条：昵称/头像/资深会员标记，几乎不变 → 缓存 7 天，跟 ⟳ 一起强制刷新 ----
+const ID_TTL = 7 * 24 * 3600 * 1000;
+const sideIdEl = document.getElementById('sideIdentity');
+const idAvatarEl = document.getElementById('idAvatar');
+const idLetterEl = document.getElementById('idLetter');
+const idNameEl = document.getElementById('idName');
+const idPillEl = document.getElementById('idPill');
+function paintSideIdentity(vm) {
+  if (!sideIdEl) return;
+  const id = vm && vm.identity;
+  if (!id || (!id.name && !id.avatar)) { sideIdEl.hidden = true; return; }
+  sideIdEl.hidden = false;
+  idNameEl.textContent = id.name || '';
+  idLetterEl.textContent = (id.name || '').trim().charAt(0) || '书';
+  idAvatarEl.hidden = !id.avatar;
+  idLetterEl.hidden = !!id.avatar;
+  if (id.avatar) idAvatarEl.src = id.avatar;
+  idPillEl.hidden = !id.deepV;
+  idPillEl.textContent = id.deepVTitle || '资深会员';
+  sideIdEl.title = id.name + (id.deepV ? ' · ' + (id.deepVTitle || '资深会员') : '');
+}
+// 微信头像走 thirdwx.qlogo.cn，取不到时退回昵称首字
+if (idAvatarEl) idAvatarEl.addEventListener('error', () => {
+  idAvatarEl.hidden = true; idLetterEl.hidden = false;
+});
+async function refreshSideIdentity(force) {
+  let cached = null;
+  try { cached = await window.wereadPC.readIdentityCache(); } catch (_) { cached = null; }
+  if (cached) paintSideIdentity(cached);
+  if (!force && cached && cached.fetchedAt && (Date.now() - cached.fetchedAt) < ID_TTL) return;
+  try {
+    const r = await window.wereadPC.fetchIdentity();
+    if (r && r.ok && r.identity) {
+      paintSideIdentity(r);
+      try { await window.wereadPC.writeIdentityCache(r); } catch (_) {}
+    }
+  } catch (_) {}
+}
 
 // ---- 详情侧栏 ----
 const DETAIL_TTL = 7 * 24 * 3600 * 1000;   // 7 天
@@ -934,7 +974,8 @@ async function renderSettings() {
       try { await window.wereadPC.clearCache(); } catch (_) {}
       statsVm = null;
       paintSideReadTime(null);
-      setStatus('已清除本地缓存（书架 / 统计 / 详情），下次进入将重新拉取');
+      paintSideIdentity(null);
+      setStatus('已清除本地缓存（书架 / 统计 / 详情 / 身份），下次进入将重新拉取');
     },
     onRefreshStats: () => { closeSettings(); showStats(); },
     onThemeChange: async (v) => {

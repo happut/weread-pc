@@ -36,13 +36,15 @@
 
   function toBookVM(b, p) {
     const deepLink = b.deepLink || '';
+    const progress = p && typeof p.progress === 'number' ? p.progress : 0;
     return {
       bookId: String(b.bookId),
       title: b.title || '',
       author: b.author || '',
       cover: b.cover || '',
       category: b.category || '',                                            // ③偏好退化用（可能为空）
-      progress: p && typeof p.progress === 'number' ? p.progress : 0,
+      progress: progress,
+      finished: isFinished(b, progress),
       readingTime: p && typeof p.readingTime === 'number' ? p.readingTime : 0, // ④TOP5退化用
       deepLink: deepLink,
       readerUrl: readerUrlFromDeepLink(deepLink)
@@ -85,6 +87,13 @@
     };
   }
 
+  // 状态筛选：all / reading（未读完且有进度）/ finished
+  function filterByStatus(books, status) {
+    if (status === 'reading') return (books || []).filter(b => !b.finished && (b.progress || 0) > 0);
+    if (status === 'finished') return (books || []).filter(b => b.finished);
+    return (books || []).slice();
+  }
+
   // 本地搜索：按书名/作者子串过滤（大小写不敏感，空白忽略；空 query 原样返回）
   function filterBooks(books, query) {
     const q = String(query || '').trim().toLowerCase();
@@ -95,7 +104,7 @@
     );
   }
 
-  const api = { buildViewModel, computeStats, buildContinueReading, buildAllBooks, toBookVM, buildProgressMap, readerUrlFromDeepLink, filterBooks };
+  const api = { buildViewModel, computeStats, buildContinueReading, buildAllBooks, toBookVM, buildProgressMap, readerUrlFromDeepLink, filterBooks, filterByStatus };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.ShelfData = api;
 })(typeof window !== 'undefined' ? window : globalThis);

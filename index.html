@@ -26,6 +26,8 @@
       --soft: #eef0f3;
       --heat-0: #ebedf0;
       --ok: #1f9254;
+      --deepv: #7a5af5;
+      --deepv-soft: #f3f0ff;
       --float-bg: rgba(255,255,255,.92);
     }
     /* 深色模式：跟随系统，只覆盖原生壳 UI；阅读页主题由微信读书自己管 */
@@ -49,6 +51,8 @@
         --soft: #34373f;
         --heat-0: #2e313a;
         --ok: #3fb95f;
+        --deepv: #a78bfa;
+        --deepv-soft: #2e2a45;
         --float-bg: rgba(52,56,64,.92);
       }
     }
@@ -298,6 +302,38 @@
     .ag-status { font-size: 12px; color: var(--text-dim); margin-top: 8px; }
     .ag-status.ok { color: var(--ok); }
 
+    /* 侧栏身份条：头像 + 昵称 + 资深会员标记（折叠态只留头像） */
+    .side-id {
+      flex: none; display: flex; align-items: center; gap: 8px;
+      margin: 4px 8px 6px; padding: 6px 8px;
+      background: var(--bg-card); border: 1px solid var(--soft); border-radius: 10px;
+    }
+    .side-id .id-av, .side-id .id-letter {
+      width: 28px; height: 28px; border-radius: 50%; flex: none;
+    }
+    .side-id .id-av { object-fit: cover; background: var(--bg-ph); }
+    .side-id .id-letter {
+      display: none; align-items: center; justify-content: center;
+      font-size: 12px; font-weight: 600; color: #fff;
+      background: linear-gradient(140deg, var(--deepv), var(--accent));
+    }
+    /* display:flex 会盖掉 hidden 属性，所以只在未被隐藏时启用 */
+    .side-id .id-letter:not([hidden]) { display: flex; }
+    .side-id .id-name {
+      flex: 1; min-width: 0; font-size: 12px; font-weight: 600; color: var(--text);
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .side-id .id-pill {
+      flex: none; font-size: 10px; font-weight: 600; padding: 1px 6px; border-radius: 9px;
+      background: var(--deepv-soft); color: var(--deepv);
+    }
+    body.side-collapsed .side-id {
+      margin: 2px 0 6px; padding: 0;
+      background: transparent; border-color: transparent; justify-content: center;
+    }
+    body.side-collapsed .side-id .id-name,
+    body.side-collapsed .side-id .id-pill { display: none; }
+
     /* 侧栏阅读时长卡片：今日/本周/本月三列（折叠态隐藏） */
     .side-rt {
       flex: none; margin: 4px 8px 8px; padding: 8px;
@@ -417,6 +453,17 @@
     .shelf-search::placeholder { color: var(--text-dim); }
     .shelf-body { flex: 1; overflow: hidden; display: flex; flex-direction: column; padding: 16px 20px 0; }
     .shelf-subhead { font-size: 13px; color: var(--text-dim); margin: 6px 0 10px; }
+    .shelf-subrow { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 6px 0 10px; }
+    .shelf-subrow .shelf-subhead { margin: 0; }
+    .shelf-filter { display: inline-flex; gap: 2px; padding: 2px; background: var(--bg-btn); border-radius: 9px; flex: none; }
+    .shelf-filter-btn {
+      height: 24px; padding: 0 12px; border: none; border-radius: 7px;
+      background: transparent; color: var(--text-dim); font-size: 12px; box-shadow: none;
+    }
+    .shelf-filter-btn:hover { background: var(--hover); color: var(--text); }
+    .shelf-filter-btn.active { background: var(--bg-card); color: var(--text); font-weight: 600; box-shadow: 0 1px 3px rgba(16,18,24,.12); }
+    .shelf-filter-btn.active[data-status="reading"] { color: var(--accent); }
+    .shelf-filter-btn.active[data-status="finished"] { color: var(--ok); }
     .continue-row { display: flex; gap: 14px; overflow-x: auto; padding-bottom: 8px; flex: none; }
     .continue-row .book-card { width: 110px; flex: none; }
 
@@ -441,6 +488,17 @@
       display: none; line-height: 1;
     }
     .book-card:hover .book-more { display: inline-flex; }
+    .book-card .done-badge {
+      position: absolute; top: 6px; left: 6px;
+      display: inline-flex; align-items: center; height: 20px; padding: 0 8px;
+      border-radius: 10px; font-size: 11px; font-weight: 600; line-height: 1;
+      color: #fff; background: rgba(18,100,56,.72);
+      -webkit-backdrop-filter: blur(4px); backdrop-filter: blur(4px);
+      text-shadow: 0 1px 2px rgba(0,0,0,.35);
+      box-shadow: 0 1px 4px rgba(16,18,24,.18);
+      pointer-events: none; user-select: none;
+    }
+    .book-card .pbar.pbar-done > i { background: var(--ok); }
     .book-menu {
       position: fixed; z-index: 40; min-width: 120px; padding: 4px;
       background: var(--bg-card); border: 1px solid var(--bar-border); border-radius: 8px;
@@ -643,6 +701,12 @@
     </div>
     <button class="rs-handle" id="rsHandle" title="折叠/展开侧栏">⟨</button>
     <div class="rs-list" id="readSideList"></div>
+    <div class="side-id" id="sideIdentity" hidden>
+      <img class="id-av" id="idAvatar" alt="" referrerpolicy="no-referrer">
+      <span class="id-letter" id="idLetter" hidden></span>
+      <span class="id-name" id="idName"></span>
+      <span class="id-pill" id="idPill" hidden></span>
+    </div>
     <div class="side-rt" id="sideReadTime" hidden>
       <div class="rt-head"><span>阅读时长</span><button id="rtRefresh" type="button" title="立即刷新阅读时长">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"></polyline><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path></svg>
