@@ -1,7 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert');
 const raw = require('./fixtures/shelf-sample.json');
-const { buildViewModel } = require('../shelf-data.js');
+const { buildViewModel, buildFolderTiles } = require('../shelf-data.js');
 
 test('stats: 在读/读完/累计小时', () => {
   const vm = buildViewModel(raw);
@@ -65,6 +65,27 @@ test('filterByStatus: all/reading/finished 三态筛选', () => {
   assert.deepStrictEqual(filterByStatus(vm.allBooks, 'bogus').length, 4);
 });
 
+test('archives + buildSections: 未分组在前、成员去重、保持 archive 顺序', () => {
+  const { buildSections } = require('../shelf-data.js');
+  const rawWithArchive = Object.assign({}, raw, {
+    archive: [
+      { archiveId: 7, name: '技术', bookIds: ['b1', 'b2'] },
+      { archiveId: 9, name: '小说', bookIds: ['b2', 'b3'] } // b2 重复 → 只归第一组
+    ]
+  });
+  const vm = buildViewModel(rawWithArchive);
+  assert.deepStrictEqual(vm.archives.map(a => a.id), ['7', '9']);
+  assert.deepStrictEqual(vm.archives[0].bookIds, ['b1', 'b2']);
+  const sec = buildSections(vm.allBooks, vm.archives);
+  assert.deepStrictEqual(sec.map(s => s.name), ['未分组', '技术', '小说']);
+  assert.deepStrictEqual(sec[0].books.map(b => b.bookId), ['b4']);
+  assert.deepStrictEqual(sec[1].books.map(b => b.bookId), ['b1', 'b2']);
+  assert.deepStrictEqual(sec[2].books.map(b => b.bookId), ['b3']);
+  // 无 archive：单未分组分区；空书列表：无分区
+  assert.deepStrictEqual(buildSections(vm.allBooks, []).map(s => s.id), ['ungrouped']);
+  assert.deepStrictEqual(buildSections([], vm.archives).map(s => s.books.length), [0, 0]);
+});
+
 test('filterBooks: 按书名/作者子串过滤，大小写不敏感', () => {
   const { filterBooks } = require('../shelf-data.js');
   const books = [
@@ -78,4 +99,25 @@ test('filterBooks: 按书名/作者子串过滤，大小写不敏感', () => {
   assert.strictEqual(filterBooks(books, '  ').length, 3);
   assert.strictEqual(filterBooks(books, '不存在的书').length, 0);
   assert.deepStrictEqual(filterBooks(null, 'x'), []);
+});
+
+test('buildFolderTiles: 空分区不出卡；≤4 本铺四格留空；>4 本前3格+第4格拼后4本', () => {
+  const sec = (id, covers) => ({ id, name: id, books: covers.map((c, i) => ({ bookId: id + i, cover: c })) });
+  const tiles = buildFolderTiles([
+    sec('five', ['c1', 'c2', '', 'c4', 'c5']),
+    { id: 'empty', name: '技术', books: [] },
+    sec('one', ['c6']),
+    sec('four', ['a', 'b', 'c', 'd']),
+    sec('six', ['a', 'b', 'c', 'd', 'e', 'f'])
+  ]);
+  assert.deepStrictEqual(tiles.map(t => t.id), ['five', 'one', 'four', 'six']);
+  assert.deepStrictEqual(tiles[0], {
+    id: 'five', name: 'five', count: 5,
+    cells: [{ cover: 'c1' }, { cover: 'c2' }, { cover: '' }, { mini: ['c4', 'c5', '', ''] }]
+  });
+  assert.deepStrictEqual(tiles[1].cells, [{ cover: 'c6' }, { cover: '' }, { cover: '' }, { cover: '' }]);
+  assert.deepStrictEqual(tiles[2].cells, [{ cover: 'a' }, { cover: 'b' }, { cover: 'c' }, { cover: 'd' }]);
+  assert.deepStrictEqual(tiles[3].cells[3], { mini: ['d', 'e', 'f', ''] });
+  assert.deepStrictEqual(buildFolderTiles([]), []);
+  assert.deepStrictEqual(buildFolderTiles(null), []);
 });

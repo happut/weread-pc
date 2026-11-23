@@ -73,6 +73,58 @@
     return arr.map(x => toBookVM(x, pm.get(String(x.bookId))));
   }
 
+  // 书架文件夹（用户自建分组）：archive 回包 → 视图模型
+  function toArchiveVM(a) {
+    return {
+      id: String(a.archiveId != null ? a.archiveId : a.name),
+      name: a.name || '',
+      bookIds: (a.bookIds || []).map(String)
+    };
+  }
+
+  // 按文件夹分区：未分组在前，其余保持 archive 原始顺序；
+  // 一本书出现在多个分组时只归入第一个，避免重复展示
+  function buildSections(books, archives) {
+    const list = books || [];
+    const byId = new Map(list.map(b => [b.bookId, b]));
+    const seen = new Set();
+    const sections = [];
+    for (const a of (archives || [])) {
+      const members = [];
+      for (const id of (a.bookIds || [])) {
+        if (seen.has(id)) continue;
+        const b = byId.get(id);
+        if (b) { seen.add(id); members.push(b); }
+      }
+      sections.push({ id: a.id, name: a.name, books: members });
+    }
+    const rest = list.filter(b => !seen.has(b.bookId));
+    if (rest.length) sections.unshift({ id: 'ungrouped', name: '未分组', books: rest });
+    return sections;
+  }
+
+  // 文件夹卡片模型：空分区不出卡；成员顺序即书架"最近阅读优先"序
+  // ≤4 本：四格按序铺封面，不足留空；>4 本：前 3 格最近 3 本，
+  // 第 4 格内嵌 2×2 拼贴放其后最近 4 本，不足留空
+  function buildFolderTiles(sections) {
+    const tiles = [];
+    for (const s of (sections || [])) {
+      const books = s.books || [];
+      if (!books.length) continue;
+      const cells = books.slice(0, 3).map(b => ({ cover: b.cover || '' }));
+      if (books.length <= 4) {
+        if (books[3]) cells.push({ cover: books[3].cover || '' });
+        while (cells.length < 4) cells.push({ cover: '' });
+      } else {
+        const mini = books.slice(3, 7).map(b => b.cover || '');
+        while (mini.length < 4) mini.push('');
+        cells.push({ mini });
+      }
+      tiles.push({ id: s.id, name: s.name, count: books.length, cells });
+    }
+    return tiles;
+  }
+
   function buildViewModel(raw, opts) {
     const limit = (opts && opts.continueLimit) || 6;
     const pm = buildProgressMap(raw || {});
@@ -82,6 +134,7 @@
       // 侧栏「继续阅读」需要全量（首页行仍截取 limit 条）
       continueReadingAll: buildContinueReading(raw || {}, pm, Infinity),
       allBooks: buildAllBooks(raw || {}, pm),
+      archives: ((raw && raw.archive) || []).map(toArchiveVM),
       bookCount: (raw && raw.bookCount) || ((raw && raw.books) ? raw.books.length : 0),
       fetchedAt: Date.now()
     };
@@ -104,7 +157,7 @@
     );
   }
 
-  const api = { buildViewModel, computeStats, buildContinueReading, buildAllBooks, toBookVM, buildProgressMap, readerUrlFromDeepLink, filterBooks, filterByStatus };
+  const api = { buildViewModel, computeStats, buildContinueReading, buildAllBooks, toBookVM, buildProgressMap, readerUrlFromDeepLink, filterBooks, filterByStatus, buildSections, buildFolderTiles };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.ShelfData = api;
 })(typeof window !== 'undefined' ? window : globalThis);

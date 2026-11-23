@@ -3,12 +3,22 @@
 (function (root) {
   'use strict';
 
-  // 纯函数：给定滚动位置计算可视行区间 [first, last]（含 overscan）
-  function computeRange(scrollTop, viewportH, rowHeight, totalRows, overscan) {
-    if (totalRows <= 0) return { first: 0, last: -1 };
+  // 纯函数：给定各行顶部偏移 tops（长度 = 行数+1，tops[0]=0），
+  // 二分计算可视行区间 [first, last]（含 overscan）
+  function computeRange(scrollTop, viewportH, tops, overscan) {
+    const n = tops.length - 1;
+    if (n <= 0) return { first: 0, last: -1 };
     const os = overscan || 0;
-    const first = Math.max(0, Math.floor(scrollTop / rowHeight) - os);
-    const last = Math.min(totalRows - 1, Math.ceil((scrollTop + viewportH) / rowHeight) + os);
+    const at = (y) => {
+      let lo = 0, hi = n;
+      while (lo < hi) {
+        const mid = (lo + hi + 1) >> 1;
+        if (tops[mid] <= y) lo = mid; else hi = mid - 1;
+      }
+      return lo;
+    };
+    const first = Math.max(0, at(scrollTop) - os);
+    const last = Math.min(n - 1, at(scrollTop + viewportH) + os);
     return { first, last };
   }
 
@@ -111,6 +121,62 @@
     return card;
   }
 
+  // 文件夹卡片：单封面卡面 + 文件夹徽章(本数) + 名称 + 本数；点击下钻该书文件夹
+  // 用 div 而非 button：Chrome 对 button 的固有高度不计 aspect-ratio 子元素，
+  // 会把 grid 行轨算塌导致卡片叠盖
+  function folderSvg() {
+    const ns = 'http://www.w3.org/2000/svg';
+    const svg = document.createElementNS(ns, 'svg');
+    svg.setAttribute('viewBox', '0 0 16 13');
+    const p = document.createElementNS(ns, 'path');
+    p.setAttribute('d', 'M0 1.5A1.5 1.5 0 0 1 1.5 0h4l1.5 2h7.5A1.5 1.5 0 0 1 16 3.5v8A1.5 1.5 0 0 1 14.5 13h-13A1.5 1.5 0 0 1 0 11.5z');
+    svg.appendChild(p);
+    return svg;
+  }
+  function coverImg(src) {
+    const img = el('img');
+    img.src = src;
+    img.loading = 'lazy';
+    img.alt = '';
+    img.referrerPolicy = 'no-referrer';
+    img.addEventListener('error', () => { img.style.visibility = 'hidden'; });
+    return img;
+  }
+  function folderCard(tile, onEnter) {
+    const b = el('div', 'folder-tile');
+    b.role = 'button';
+    b.tabIndex = 0;
+    b.title = tile.name + ' · ' + tile.count + ' 本';
+    const face = el('div', 'folder-face');
+    for (const cell of tile.cells) {
+      const c = el('div', 'folder-cell');
+      if (cell.mini) {
+        const m = el('div', 'folder-mini');
+        for (const src of cell.mini) {
+          const slot = el('i');
+          if (src) slot.appendChild(coverImg(src));
+          m.appendChild(slot);
+        }
+        c.appendChild(m);
+      } else if (cell.cover) {
+        c.appendChild(coverImg(cell.cover));
+      }
+      face.appendChild(c);
+    }
+    const badge = el('span', 'folder-badge');
+    badge.appendChild(folderSvg());
+    badge.appendChild(document.createTextNode(String(tile.count)));
+    face.appendChild(badge);
+    b.appendChild(face);
+    b.appendChild(el('div', 'folder-name', tile.name));
+    b.appendChild(el('div', 'folder-count', tile.count + ' 本'));
+    b.addEventListener('click', onEnter);
+    b.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onEnter(); }
+    });
+    return b;
+  }
+
   // 虚拟网格：行式窗口化，只渲染可视行
   function VirtualGrid(viewport, items, opts) {
     this.viewport = viewport;
@@ -164,32 +230,45 @@
     this.cols = Math.max(1, Math.floor((w + this.gap) / (this.minCellW + this.gap)));
     this.cellW = (w - (this.cols - 1) * this.gap) / this.cols;
     this.cellH = this.cellW * this.ratio + this.textH;
-    this.rowHeight = this.cellH + this.gap;
-    this.totalRows = Math.ceil(this.items.length / this.cols);
-    this.sizer.style.height = (this.totalRows * this.rowHeight) + 'px';
+    this._buildRows();
+    this.sizer.style.height = this.totalH + 'px';
     this.paint();
+  };
+  // 把 items 铺成行：书按 cols 打包；tops 为行顶偏移前缀和
+  VirtualGrid.prototype._buildRows = function () {
+    const rows = [];
+    let cur = null;
+    const flush = () => { if (cur) { rows.push(cur); cur = null; } };
+    for (const it of this.items) {
+      if (!cur) cur = { kind: 'b', items: [], h: this.cellH + this.gap };
+      cur.items.push(it);
+      if (cur.items.length >= this.cols) flush();
+    }
+    flush();
+    this.rows = rows;
+    this.tops = [0];
+    for (const r of rows) this.tops.push(this.tops[this.tops.length - 1] + r.h);
+    this.totalH = this.tops[this.tops.length - 1];
   };
   VirtualGrid.prototype.paint = function () {
     const { first, last } = computeRange(
-      this.viewport.scrollTop, this.viewport.clientHeight,
-      this.rowHeight, this.totalRows, 1
+      this.viewport.scrollTop, this.viewport.clientHeight, this.tops, 1
     );
     // 用 top 定位而非 transform：避免 GPU 合成层在滚动/改宽时留残影
-    this.rowsEl.style.top = (first * this.rowHeight) + 'px';
+    this.rowsEl.style.top = (this.tops[first] || 0) + 'px';
     this.rowsEl.textContent = '';
     for (let r = first; r <= last; r++) {
-      const row = el('div', 'grid-row');
-      row.style.height = this.cellH + 'px';
-      row.style.marginBottom = this.gap + 'px';
-      for (let c = 0; c < this.cols; c++) {
-        const idx = r * this.cols + c;
-        if (idx >= this.items.length) break;
+      const row = this.rows[r];
+      const rowEl = el('div', 'grid-row');
+      rowEl.style.height = this.cellH + 'px';
+      rowEl.style.marginBottom = this.gap + 'px';
+      for (const vm of row.items) {
         const cell = el('div', 'grid-cell');
         cell.style.width = this.cellW + 'px';
-        cell.appendChild(bookCard(this.items[idx], { onOpen: this.onOpen, onDetail: this.onDetail }, true));
-        row.appendChild(cell);
+        cell.appendChild(bookCard(vm, { onOpen: this.onOpen, onDetail: this.onDetail }, true));
+        rowEl.appendChild(cell);
       }
-      this.rowsEl.appendChild(row);
+      this.rowsEl.appendChild(rowEl);
     }
     this._lazyLoad();
   };
@@ -207,6 +286,8 @@
   ];
   const STATUS_TITLE = { all: '全部藏书', reading: '在读', finished: '已读完' };
   let statusFilter = 'all';
+  // 当前下钻的文件夹：null = 顶层文件夹卡片；'ungrouped' 或 archive id
+  let currentFolder = null;
 
   // 主渲染入口：把视图模型画进 container
   function render(container, vm, handlers) {
@@ -239,8 +320,13 @@
       body.appendChild(continueSec);
     }
     const subRow = el('div', 'shelf-subrow');
+    const back = el('button', 'shelf-back', '← 我的书架');
+    back.type = 'button';
+    back.addEventListener('click', () => { currentFolder = null; applyList(); });
+    subRow.appendChild(back);
     const allSub = el('div', 'shelf-subhead');
     subRow.appendChild(allSub);
+    const filters = el('div', 'shelf-filters');
     const seg = el('div', 'shelf-filter');
     const segBtns = {};
     STATUS_OPTIONS.forEach(o => {
@@ -250,23 +336,89 @@
       segBtns[o.key] = b;
       seg.appendChild(b);
     });
-    subRow.appendChild(seg);
+    filters.appendChild(seg);
+    const archives = vm.archives || [];
+    const groupSel = el('select', 'shelf-group');
+    groupSel.title = '按书架文件夹跳转';
+    const optAll = el('option', '', '全部分组');
+    optAll.value = 'all';
+    groupSel.appendChild(optAll);
+    archives.forEach(a => {
+      const o = el('option', '', a.name + '（' + a.bookIds.length + '）');
+      o.value = a.id;
+      groupSel.appendChild(o);
+    });
+    groupSel.style.display = archives.length ? '' : 'none';
+    groupSel.addEventListener('change', () => {
+      currentFolder = groupSel.value === 'all' ? null : groupSel.value;
+      if (search.value.trim()) search.value = '';
+      applyList();
+    });
+    filters.appendChild(groupSel);
+    subRow.appendChild(filters);
     body.appendChild(subRow);
+    const folderGrid = el('div', 'folder-grid');
+    body.appendChild(folderGrid);
     const viewport = el('div', 'grid-viewport');
     body.appendChild(viewport);
+    const gridEmpty = el('div', 'shelf-grid-empty');
+    body.appendChild(gridEmpty);
     container.appendChild(body);
     container._grid = new VirtualGrid(viewport, [], { onOpen: handlers.onOpen, onDetail: handlers.onDetail });
     function applyList() {
       const q = search.value;
-      let list = vm.allBooks;
+      const searching = !!q.trim();
+      let books = vm.allBooks;
       if (root.ShelfData) {
-        list = root.ShelfData.filterByStatus(list, statusFilter);
-        list = root.ShelfData.filterBooks(list, q);
+        books = root.ShelfData.filterByStatus(books, statusFilter);
+        books = root.ShelfData.filterBooks(books, q);
       }
+      const sections = root.ShelfData
+        ? root.ShelfData.buildSections(books, archives)
+        : [{ id: 'ungrouped', name: '未分组', books: books }];
       STATUS_OPTIONS.forEach(o => segBtns[o.key].classList.toggle('active', o.key === statusFilter));
-      allSub.textContent = (q.trim() ? '搜索结果' : STATUS_TITLE[statusFilter]) + ' · ' + list.length + ' 本';
-      if (continueSec) continueSec.style.display = (q.trim() || statusFilter !== 'all') ? 'none' : '';
-      container._grid.setItems(list);
+      // 继续阅读常驻；仅搜索时让位给结果
+      if (continueSec) continueSec.style.display = searching ? 'none' : '';
+      if (!searching && currentFolder && !sections.some(s => s.id === currentFolder)) currentFolder = null;
+      const inFolder = !searching && currentFolder != null;
+      back.style.display = inFolder ? '' : 'none';
+      groupSel.value = inFolder ? currentFolder : 'all';
+      gridEmpty.style.display = 'none';
+      if (!searching && !inFolder) {
+        // 顶层：文件夹卡片（数量少，无需窗口化）
+        const tiles = root.ShelfData ? root.ShelfData.buildFolderTiles(sections) : [];
+        folderGrid.style.display = tiles.length ? '' : 'none';
+        viewport.style.display = 'none';
+        folderGrid.textContent = '';
+        tiles.forEach(t => folderGrid.appendChild(folderCard(t, () => { currentFolder = t.id; applyList(); })));
+        // 重建卡片会保留旧滚动位置，回到顶层应从第一行开始
+        folderGrid.scrollTop = 0;
+        const shown = tiles.reduce((n, t) => n + t.count, 0);
+        allSub.textContent = STATUS_TITLE[statusFilter] + ' · ' + shown + ' 本';
+        if (!tiles.length) {
+          gridEmpty.textContent = '暂无符合筛选的文件夹';
+          gridEmpty.style.display = '';
+        }
+        container._grid.setItems([]);
+        return;
+      }
+      folderGrid.style.display = 'none';
+      let items, title;
+      if (searching) {
+        items = books;
+        title = '搜索结果';
+      } else {
+        const s = sections.find(x => x.id === currentFolder);
+        items = s.books;
+        title = s.name;
+      }
+      viewport.style.display = items.length ? '' : 'none';
+      allSub.textContent = title + ' · ' + items.length + ' 本';
+      if (!items.length) {
+        gridEmpty.textContent = searching ? '没有匹配的书' : '该文件夹暂无符合筛选的书';
+        gridEmpty.style.display = '';
+      }
+      container._grid.setItems(items);
     }
     search.addEventListener('input', applyList);
     applyList();
