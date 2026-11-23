@@ -1,8 +1,11 @@
-const { app, BrowserWindow, ipcMain, nativeTheme, powerSaveBlocker, screen, session } = require('electron');
+const { app, BrowserWindow, ipcMain, nativeTheme, net, powerSaveBlocker, screen, session, shell } = require('electron');
 const path = require('path');
 const fs = require('fs');
+const os = require('os');
+const { execFile } = require('child_process');
 const WereadAuth = require('./weread-auth.js');
 const WereadApi = require('./weread-api.js');
+const { compareVersions, pickAsset } = require('./update-data.js');
 
 let win = null;
 let powerSaveId = null;
@@ -287,6 +290,144 @@ ipcMain.handle('weread-fetch-identity', async () => {
     return identity ? { ok: true, identity, fetchedAt: Date.now() } : { ok: false, reason: 'no-identity' };
   }
   catch (e) { return { ok: false, reason: 'fetch-failed', message: String((e && e.message) || e) }; }
+});
+
+// ---- 检查更新与一键更新（源：GitHub releases）----
+ipcMain.handle('app-version', () => app.getVersion());
+const RELEASE_API = 'https://api.github.com/repos/happut/weread-pc/releases/latest';
+const RELEASE_PAGE = 'https://github.com/happut/weread-pc/releases/latest';
+let updating = false;
+
+function sendUpdateProgress(p) {
+  if (win && !win.isDestroyed()) win.webContents.send('update-progress', p);
+}
+
+ipcMain.handle('update-check', async () => {
+  const current = app.getVersion();
+  try {
+    const res = await net.fetch(RELEASE_API, {
+      headers: { Accept: 'application/vnd.github+json', 'User-Agent': 'WeRead-PC-update' },
+      signal: AbortSignal.timeout(15000)
+    });
+    if (!res.ok) return { ok: false, current, message: 'GitHub 返回 HTTP ' + res.status };
+    const rel = await res.json();
+    const latest = String(rel.tag_name || '').replace(/^v/i, '');
+    if (!latest) return { ok: false, current, message: 'release 回包缺少 tag_name' };
+    const asset = pickAsset(rel.assets, process.platform, process.arch);
+    return {
+      ok: true,
+      current,
+      latest,
+      newer: compareVersions(current, latest) < 0,
+      notes: String(rel.body || ''),
+      page: String(rel.html_url || RELEASE_PAGE),
+      asset: asset ? { name: asset.name, size: asset.size, url: asset.browser_download_url } : null
+    };
+  } catch (e) {
+    return { ok: false, current, message: String((e && e.message) || e) };
+  }
+});
+
+function execFileP(cmd, args) {
+  return new Promise((resolve, reject) => {
+    execFile(cmd, args, { maxBuffer: 16 * 1024 * 1024 }, (e, stdout, stderr) => {
+      if (e) reject(new Error(String(stderr || e.message).trim()));
+      else resolve(stdout);
+    });
+  });
+}
+
+// 安装态 exe 形如 /Applications/WeRead-PC.app/Contents/MacOS/WeRead-PC，向上找 .app 包根
+function currentBundlePath() {
+  let p = app.getPath('exe');
+  while (p && p !== path.dirname(p)) {
+    if (p.endsWith('.app')) return p;
+    p = path.dirname(p);
+  }
+  return null;
+}
+
+async function downloadZip(url, dest) {
+  const res = await net.fetch(url, { signal: AbortSignal.timeout(10 * 60 * 1000) });
+  if (!res.ok) throw new Error('下载返回 HTTP ' + res.status);
+  const total = Number(res.headers.get('content-length')) || 0;
+  const chunks = [];
+  let got = 0;
+  let lastPct = -1;
+  const reader = res.body.getReader();
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    chunks.push(Buffer.from(value));
+    got += value.length;
+    if (total) {
+      const pct = Math.min(99, Math.floor(got * 100 / total));
+      if (pct !== lastPct) { lastPct = pct; sendUpdateProgress({ phase: 'download', percent: pct }); }
+    }
+  }
+  fs.writeFileSync(dest, Buffer.concat(chunks));
+}
+
+// 一键更新：下载 zip → 解压校验 → 旧包备份到 /tmp → ditto 替换 → 重启。
+// 仅 darwin 安装态；其余情况返回 manual 让渲染层给下载页链接。
+ipcMain.handle('update-apply', async (_, info) => {
+  if (updating) return { ok: false, message: '更新正在进行中' };
+  const current = app.getVersion();
+  const latest = String((info && info.latest) || '');
+  const url = String((info && info.url) || '');
+  if (!latest || compareVersions(current, latest) >= 0) return { ok: false, message: '已是最新，无需更新' };
+  if (!/^https:\/\/(github\.com|objects\.githubusercontent\.com)\//.test(url)) return { ok: false, message: '下载地址不合法' };
+  if (process.platform !== 'darwin' || !app.isPackaged) {
+    return {
+      ok: false,
+      manual: true,
+      page: RELEASE_PAGE,
+      message: process.platform !== 'darwin' ? '当前平台仅支持手动下载更新' : '开发态不支持自更新，请使用安装版'
+    };
+  }
+  const bundle = currentBundlePath();
+  if (!bundle) return { ok: false, message: '定位当前应用包失败' };
+  updating = true;
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'weread-update-'));
+  try {
+    sendUpdateProgress({ phase: 'download', percent: 0 });
+    const zip = path.join(tmp, 'update.zip');
+    await downloadZip(url, zip);
+    sendUpdateProgress({ phase: 'install' });
+    const extract = path.join(tmp, 'extract');
+    await execFileP('ditto', ['-x', '-k', zip, extract]);
+    const srcApp = path.join(extract, 'WeRead-PC.app');
+    if (!fs.existsSync(path.join(srcApp, 'Contents', 'Info.plist'))) throw new Error('安装包内未找到 WeRead-PC.app');
+    const base = path.basename(bundle, '.app');
+    const stamp = new Date().toISOString().slice(0, 10);
+    let backup = path.join(os.tmpdir(), base + '.bak-' + stamp + '.app');
+    for (let i = 2; fs.existsSync(backup); i++) backup = path.join(os.tmpdir(), base + '.bak-' + stamp + '-' + i + '.app');
+    fs.renameSync(bundle, backup);
+    try {
+      // ditto 保留签名与权限位，cp 会丢扩展属性
+      await execFileP('ditto', [srcApp, bundle]);
+      if (!fs.existsSync(path.join(bundle, 'Contents', 'Info.plist'))) throw new Error('替换后校验失败');
+    } catch (e) {
+      fs.renameSync(backup, bundle);
+      throw e;
+    }
+    fs.rmSync(tmp, { recursive: true, force: true });
+    app.relaunch();
+    app.exit(0);
+    return { ok: true };
+  } catch (e) {
+    fs.rmSync(tmp, { recursive: true, force: true });
+    updating = false;
+    return { ok: false, message: String((e && e.message) || e) };
+  }
+});
+
+// 手动下载兜底：只允许打开 GitHub 域链接
+ipcMain.handle('update-open-page', (_, url) => {
+  const u = String(url || '');
+  if (!/^https:\/\/github\.com\//.test(u)) return false;
+  shell.openExternal(u);
+  return true;
 });
 
 app.whenReady().then(createWindow);

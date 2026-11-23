@@ -46,8 +46,8 @@
     { value: 'dark', label: '深色' }
   ];
 
-  // model = { mode, source, maskedKey, manualKey, manualCookie, theme, syncReaderTheme, rtInterval }
-  // handlers = { onClose, onSaveManual({key,cookie}), onClearManual, onLogout, onClearCache, onRefreshStats, onThemeChange(value), onSyncReaderThemeChange(checked), onRtIntervalChange(minutes) }
+  // model = { mode, source, maskedKey, manualKey, manualCookie, theme, syncReaderTheme, rtInterval, update }
+  // handlers = { onClose, onSaveManual({key,cookie}), onClearManual, onLogout, onClearCache, onRefreshStats, onThemeChange(value), onSyncReaderThemeChange(checked), onRtIntervalChange(minutes), onCheckUpdate, onApplyUpdate, onOpenUpdatePage }
   function render(container, model, handlers) {
     const m = model || {};
     const h = handlers || {};
@@ -155,12 +155,41 @@
     sec3.appendChild(note);
     panel.appendChild(sec3);
 
+    // 关于与更新：当前版本 + 检查/一键更新；进度只经 paintUpdate 局部刷新，不重渲染面板
+    const secUpd = el('div', 'stg-sec stg-upd');
+    secUpd.appendChild(el('div', 'stg-lbl', '关于与更新'));
+    const updRow = el('div', 'upd-row');
+    const verLbl = el('span', 'stg-lbl', '');
+    const checkBtn = el('button', null, '检查更新');
+    checkBtn.addEventListener('click', function () { h.onCheckUpdate && h.onCheckUpdate(); });
+    updRow.appendChild(verLbl);
+    updRow.appendChild(checkBtn);
+    secUpd.appendChild(updRow);
+    const status = el('div', 'upd-status');
+    secUpd.appendChild(status);
+    const notesWrap = el('details', 'upd-notes');
+    notesWrap.appendChild(el('summary', null, '更新说明'));
+    const notesBody = el('div', 'upd-notes-body');
+    notesWrap.appendChild(notesBody);
+    secUpd.appendChild(notesWrap);
+    const actions = el('div', 'upd-actions');
+    const applyBtn = el('button', 'primary', '立即更新');
+    applyBtn.addEventListener('click', function () { h.onApplyUpdate && h.onApplyUpdate(); });
+    const pageBtn = el('button', null, '打开下载页');
+    pageBtn.addEventListener('click', function () { h.onOpenUpdatePage && h.onOpenUpdatePage(); });
+    actions.appendChild(applyBtn);
+    actions.appendChild(pageBtn);
+    secUpd.appendChild(actions);
+    panel.appendChild(secUpd);
+    container._updRefs = { verLbl, checkBtn, status, notesWrap, notesBody, applyBtn, pageBtn, actions };
+
     // 隐私页脚
     const ft = el('div', 'stg-ft');
     ft.textContent = '所有数据仅存于本机 .userdata/ 目录（已 gitignore）；API Key 与 Cookie 不会上传、不会打印到日志。';
     panel.appendChild(ft);
 
     container.appendChild(panel);
+    paintUpdate(container, m.update);
 
     // 点遮罩空白处关闭（只绑一次监听；handler 存 container 上动态读取，避免闭包固化首次 h）
     container._stgHandlers = h;
@@ -172,7 +201,36 @@
     }
   }
 
-  const api = { el, pillClass, pillText, sourceText, normalizeTheme, normalizeRtInterval, wrThemeFor, render };
+  // u = { current, state: idle|checking|latest|newer|downloading|installing|error|manual, latest, notes, percent, message, page }
+  // 只改更新区节点，避免进度刷新重渲染整个面板打断手动 Key 输入
+  function paintUpdate(container, u) {
+    const r = container && container._updRefs;
+    if (!r) return;
+    const m = u || {};
+    const st = m.state || 'idle';
+    r.verLbl.textContent = '当前版本 ' + (m.current ? 'v' + m.current : '未知');
+    const busy = st === 'checking' || st === 'downloading' || st === 'installing';
+    r.checkBtn.disabled = busy;
+    r.checkBtn.textContent = st === 'checking' ? '检查中…' : '检查更新';
+    let txt = '';
+    if (st === 'checking') txt = '检查中…';
+    else if (st === 'latest') txt = '已是最新（v' + m.current + '）';
+    else if (st === 'newer') txt = '发现新版 v' + m.latest;
+    else if (st === 'downloading') txt = '下载中 ' + (m.percent || 0) + '%';
+    else if (st === 'installing') txt = '安装中，完成后自动重启…';
+    else if (st === 'error' || st === 'manual') txt = m.message || '';
+    r.status.textContent = txt;
+    r.status.className = 'upd-status' + (st === 'error' ? ' err' : '');
+    r.status.style.display = txt ? '' : 'none';
+    const showNotes = st === 'newer' && !!m.notes;
+    r.notesWrap.style.display = showNotes ? '' : 'none';
+    if (showNotes) r.notesBody.textContent = m.notes;
+    r.applyBtn.style.display = st === 'newer' ? '' : 'none';
+    r.pageBtn.style.display = st === 'manual' ? '' : 'none';
+    r.actions.style.display = (st === 'newer' || st === 'manual') ? '' : 'none';
+  }
+
+  const api = { el, pillClass, pillText, sourceText, normalizeTheme, normalizeRtInterval, wrThemeFor, render, paintUpdate };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.SettingsView = api;
 })(typeof window !== 'undefined' ? window : globalThis);

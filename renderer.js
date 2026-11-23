@@ -919,6 +919,60 @@ function showBubbleOnce() {
 }
 function closeBubble() { if (bubbleEl) { bubbleEl.remove(); bubbleEl = null; } }
 
+// ---- 检查更新 / 一键更新（设置页「关于与更新」区）----
+let updateModel = { state: 'idle' };
+let updateInfo = null;
+let updateProgressOff = null;
+function paintUpdate() { window.SettingsView.paintUpdate(settingsEl, updateModel); }
+async function checkUpdate() {
+  updateModel = Object.assign({}, updateModel, { state: 'checking', message: '' });
+  paintUpdate();
+  let r = null;
+  try { r = await window.wereadPC.checkUpdate(); }
+  catch (e) { r = { ok: false, message: String((e && e.message) || e) }; }
+  if (!r || !r.ok) {
+    updateModel = Object.assign({}, updateModel, {
+      state: 'error',
+      current: (r && r.current) || updateModel.current,
+      message: '检查失败：' + ((r && r.message) || '未知错误')
+    });
+    paintUpdate();
+    return;
+  }
+  updateInfo = r;
+  updateModel = {
+    state: r.newer ? (r.asset ? 'newer' : 'manual') : 'latest',
+    current: r.current,
+    latest: r.latest,
+    notes: r.notes,
+    page: r.page,
+    message: r.asset ? '' : '未找到当前平台的安装包，可手动下载'
+  };
+  paintUpdate();
+}
+async function applyUpdate() {
+  if (!updateInfo || !updateInfo.asset) return;
+  if (updateModel.state === 'downloading' || updateModel.state === 'installing') return;
+  updateModel = Object.assign({}, updateModel, { state: 'downloading', percent: 0 });
+  paintUpdate();
+  if (!updateProgressOff) {
+    updateProgressOff = window.wereadPC.onUpdateProgress((p) => {
+      if (!p) return;
+      if (p.phase === 'download') updateModel = Object.assign({}, updateModel, { state: 'downloading', percent: p.percent });
+      else if (p.phase === 'install') updateModel = Object.assign({}, updateModel, { state: 'installing' });
+      paintUpdate();
+    });
+  }
+  let r = null;
+  try { r = await window.wereadPC.applyUpdate({ latest: updateInfo.latest, url: updateInfo.asset.url }); }
+  catch (e) { r = { ok: false, message: String((e && e.message) || e) }; }
+  if (updateProgressOff) { updateProgressOff(); updateProgressOff = null; }
+  if (r && r.ok) return; // 主进程已 relaunch，应用即将重启
+  if (r && r.manual) updateModel = Object.assign({}, updateModel, { state: 'manual', page: r.page || updateModel.page, message: r.message });
+  else updateModel = Object.assign({}, updateModel, { state: 'error', message: '更新失败：' + ((r && r.message) || '未知错误') });
+  paintUpdate();
+}
+
 // ---- 设置模态 ----
 function openSettings() {
   settingsEl.classList.add('show');
@@ -930,6 +984,8 @@ async function renderSettings() {
   try { auth = await window.wereadPC.readAuth(); } catch (_) { auth = null; }
   auth = auth || {};
   const resolved = window.WereadAuth.resolveAuth(auth);
+  let ver = '';
+  try { ver = await window.wereadPC.getVersion(); } catch (_) {}
   const model = {
     mode: resolved.mode,
     source: resolved.source,
@@ -938,7 +994,8 @@ async function renderSettings() {
     manualCookie: auth.manualCookie || '',
     theme: currentTheme(),
     syncReaderTheme: syncReaderThemeOn(),
-    rtInterval: rtIntervalMinutes()
+    rtInterval: rtIntervalMinutes(),
+    update: Object.assign({ current: ver }, updateModel)
   };
   window.SettingsView.render(settingsEl, model, {
     onClose: closeSettings,
@@ -995,7 +1052,10 @@ async function renderSettings() {
       try { localStorage.setItem(RT_INTERVAL_KEY, String(mins)); } catch (_) {}
       startSideRtTimer();
       await renderSettings();
-    }
+    },
+    onCheckUpdate: () => { checkUpdate(); },
+    onApplyUpdate: () => { applyUpdate(); },
+    onOpenUpdatePage: () => { window.wereadPC.openUpdatePage(updateModel.page || (updateInfo && updateInfo.page) || ''); }
   });
 }
 

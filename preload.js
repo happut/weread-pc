@@ -22,5 +22,14 @@ contextBridge.exposeInMainWorld('wereadPC', {
   writeIdentityCache: (vm) => ipcRenderer.invoke('identity-cache-write', vm),
   clickGuest: (webContentsId, x, y) => ipcRenderer.invoke('guest-click', webContentsId, x, y),
   moveGuest: (webContentsId, x, y) => ipcRenderer.invoke('guest-move', webContentsId, x, y),
-  writeProbe: (t) => ipcRenderer.invoke('probe-write', t)
+  writeProbe: (t) => ipcRenderer.invoke('probe-write', t),
+  checkUpdate: () => ipcRenderer.invoke('update-check'),
+  getVersion: () => ipcRenderer.invoke('app-version'),
+  applyUpdate: (info) => ipcRenderer.invoke('update-apply', info),
+  openUpdatePage: (url) => ipcRenderer.invoke('update-open-page', url),
+  onUpdateProgress: (cb) => {
+    const listener = (_, p) => cb(p);
+    ipcRenderer.on('update-progress', listener);
+    return () => ipcRenderer.removeListener('update-progress', listener);
+  }
 });
